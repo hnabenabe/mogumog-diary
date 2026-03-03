@@ -28,14 +28,13 @@ input,textarea,select{font-family:'Zen Maru Gothic',sans-serif;}
 // 🔥 Firebase設定 - ここを自分のプロジェクトの値に置き換えてください
 // ============================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyAozqSzd3xuslxeJffGByqm7WzWFG5Qao0",
-  authDomain: "mogumog-diary.firebaseapp.com",
-  databaseURL: "https://mogumog-diary-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "mogumog-diary",
-  storageBucket: "mogumog-diary.firebasestorage.app",
-  messagingSenderId: "465833586941",
-  appId: "1:465833586941:web:527b5c7e69dfd74f984e94",
-  measurementId: "G-Z1ES477EYM"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 const IS_FIREBASE_CONFIGURED = !firebaseConfig.apiKey.includes("YOUR_");
@@ -76,13 +75,26 @@ Object.values(STAGE_FOODS).flat().forEach(f=>{UNIT_DEFAULTS[f]=f==="豆腐"?"g":
 const DEFAULT_NO_FREEZE=["豆腐"];
 
 const SEED_MEALS={
-  "2026-02-28":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false},{food:"バナナ",amount:1,unit:"小さじ",isNew:true},{food:"かぼちゃ",amount:1,unit:"小さじ",isNew:false},{food:"豆腐",amount:6,unit:"g",isNew:false}]},
-  "2026-03-01":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false},{food:"ブロッコリー",amount:1,unit:"小さじ",isNew:true},{food:"バナナ",amount:2,unit:"小さじ",isNew:false},{food:"豆腐",amount:6,unit:"g",isNew:false}]},
-  "2026-03-02":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false},{food:"ブロッコリー",amount:1,unit:"小さじ",isNew:false},{food:"かぼちゃ",amount:2,unit:"小さじ",isNew:false},{food:"しらす",amount:1,unit:"小さじ",isNew:false}]},
-  "2026-03-03":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false},{food:"ブロッコリー",amount:2,unit:"小さじ",isNew:false},{food:"かぼちゃ",amount:1,unit:"小さじ",isNew:false},{food:"しらす",amount:1,unit:"小さじ",isNew:false}]},
-  "2026-03-04":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false},{food:"トマト",amount:1,unit:"小さじ",isNew:true},{food:"バナナ",amount:2,unit:"小さじ",isNew:false},{food:"豆腐",amount:6,unit:"g",isNew:false}]},
-  "2026-03-05":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false},{food:"トマト",amount:2,unit:"小さじ",isNew:false},{food:"バナナ",amount:2,unit:"小さじ",isNew:false},{food:"豆腐",amount:6,unit:"g",isNew:false}]},
-  "2026-03-06":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false},{food:"かぼちゃ",amount:3,unit:"小さじ",isNew:false},{food:"バナナ",amount:1,unit:"小さじ",isNew:false},{food:"豆腐",amount:6,unit:"g",isNew:false}]},
+  "2026-02-28":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"かぼちゃ",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},
+  "2026-03-01":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"ブロッコリー",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"バナナ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},
+  "2026-03-02":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"ブロッコリー",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"かぼちゃ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"しらす",amount:1,unit:"小さじ",isNew:false,mixed:false}]},
+  "2026-03-03":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"ブロッコリー",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"かぼちゃ",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"しらす",amount:1,unit:"小さじ",isNew:false,mixed:false}]},
+  "2026-03-04":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"トマト",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"バナナ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},
+  "2026-03-05":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"トマト",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},
+  "2026-03-06":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"かぼちゃ",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},
+  "2026-03-07":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"じゃがいも",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]},
+  "2026-03-08":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"じゃがいも",amount:2,unit:"小さじ",isNew:false,mixed:true},{food:"かぶ",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"バナナ",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]},
+  "2026-03-09":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"かぶ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:true}]},
+  "2026-03-10":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},
+  "2026-03-11":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"白身魚",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"かぶ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:2,unit:"小さじ",isNew:false,mixed:true}]},
+  "2026-03-12":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"白身魚",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:2,unit:"小さじ",isNew:false,mixed:true},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},
+  "2026-03-13":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"じゃがいも",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},
+  "2026-03-14":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"白菜",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]},
+  "2026-03-15":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"白菜",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:true},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},
+  "2026-03-16":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:true},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"さつまいも",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},
+  "2026-03-17":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"さつまいも",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"白菜",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"白身魚",amount:3,unit:"小さじ",isNew:false,mixed:true}]},
+  "2026-03-18":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"さつまいも",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"りんご",amount:2,unit:"小さじ",isNew:false,mixed:true}]},
+  "2026-03-19":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"白菜",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]},
 };
 
 // ── Date helpers ──
@@ -193,7 +205,7 @@ function MealEditor({date,meals,onSave,allergies,mealCount}){
     setItems(ex.map(i=>({...i})));setReaction(meta.reaction||"");setEatenAmt(meta.amount||"ふつう");
     setEditingMeal(mt);setShowPicker(false);
   };
-  const addFood=(food)=>{if(items.find(i=>i.food===food))return;setItems([...items,{food,amount:UNIT_DEFAULTS[food]==="g"?6:1,unit:UNIT_DEFAULTS[food]||"小さじ",isNew:false}]);setShowPicker(false);};
+  const addFood=(food)=>{if(items.find(i=>i.food===food))return;setItems([...items,{food,amount:UNIT_DEFAULTS[food]==="g"?6:1,unit:UNIT_DEFAULTS[food]||"小さじ",isNew:false,mixed:false}]);setShowPicker(false);};
   const updateItem=(idx,field,val)=>{const n=[...items];n[idx]={...n[idx],[field]:val};setItems(n);};
   const removeItem=(idx)=>setItems(items.filter((_,i)=>i!==idx));
   const handleSave=()=>{const ud={...dayData,[editingMeal]:items};const um={...dayMeta,[editingMeal]:{reaction,amount:eatenAmt}};onSave(date,ud,um);setEditingMeal(null);};
@@ -226,7 +238,9 @@ function MealEditor({date,meals,onSave,allergies,mealCount}){
         <div style={{width:60}}/>
       </div>
       <div style={{marginBottom:12}}>
-        {items.map((item,idx)=>(<div key={idx} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 10px",background:"#FFF8F0",borderRadius:12,marginBottom:6,boxShadow:"0 1px 3px rgba(93,64,55,0.06)"}}>
+        {items.map((item,idx)=>(<div key={idx}>
+          {item.mixed&&idx>0&&(<div style={{textAlign:"center",margin:"-2px 0",fontSize:10,color:"#FF8A65",fontFamily:font,fontWeight:700}}>＋ まぜる</div>)}
+          <div style={{display:"flex",alignItems:"center",gap:5,padding:"8px 10px",background:item.mixed&&idx>0?"#FFF3E0":"#FFF8F0",borderRadius:12,marginBottom:6,boxShadow:"0 1px 3px rgba(93,64,55,0.06)",borderLeft:item.mixed&&idx>0?"3px solid #FF8A65":"3px solid transparent"}}>
           <span style={{fontSize:15}}>{foodEmoji(item.food)}</span>
           <span style={{flex:1,fontFamily:font,fontWeight:600,fontSize:13,color:"#5D4037",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.food}</span>
           <div style={{display:"flex",alignItems:"center",gap:3,flexShrink:0}}>
@@ -235,12 +249,13 @@ function MealEditor({date,meals,onSave,allergies,mealCount}){
             <button onClick={()=>updateItem(idx,"amount",item.amount+1)} style={{width:26,height:26,borderRadius:8,border:"none",background:"#F5EDE3",fontSize:13,cursor:"pointer",fontWeight:700,color:"#8D7B6A"}}>+</button>
             <span style={{fontFamily:font,fontSize:10,color:"#8D7B6A",width:28}}>{item.unit}</span>
           </div>
+          {idx>0&&(<button onClick={()=>updateItem(idx,"mixed",!item.mixed)} style={{width:22,height:22,borderRadius:6,border:"none",background:item.mixed?"#FF8A65":"#F5EDE3",color:item.mixed?"#FFF":"#8D7B6A",fontSize:10,cursor:"pointer",flexShrink:0,fontWeight:700,fontFamily:font}}>＋</button>)}
           <label style={{display:"flex",alignItems:"center",gap:2,cursor:"pointer",flexShrink:0}}>
             <input type="checkbox" checked={!!item.isNew} onChange={e=>updateItem(idx,"isNew",e.target.checked)} style={{accentColor:"#FF8A65",width:14,height:14}}/>
             <span style={{fontFamily:font,fontSize:10,color:"#E65100",fontWeight:700}}>初</span>
           </label>
           <button onClick={()=>removeItem(idx)} style={{width:22,height:22,borderRadius:6,border:"none",background:"#FFCDD2",color:"#C62828",fontSize:11,cursor:"pointer",flexShrink:0}}>✕</button>
-        </div>))}
+        </div></div>))}
         <button onClick={()=>setShowPicker(true)} style={{width:"100%",padding:"10px",borderRadius:12,border:"2px dashed #E0D5C5",background:"transparent",color:"#BFAE9A",fontSize:13,cursor:"pointer",fontFamily:font}}>+ 食材を追加</button>
       </div>
       <div style={{marginBottom:10}}>
@@ -272,7 +287,8 @@ function MealEditor({date,meals,onSave,allergies,mealCount}){
           {!has&&<span style={{fontSize:12,color:"#BFAE9A"}}>+ タップして追加</span>}
         </div>
         {has&&(<div style={{marginTop:6}}>
-          {mi.map((item,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:i<mi.length-1?4:0}}>
+          {mi.map((item,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:i<mi.length-1?2:0,paddingLeft:item.mixed&&i>0?8:0,borderLeft:item.mixed&&i>0?"2px solid #FF8A65":"2px solid transparent",marginLeft:item.mixed&&i>0?2:0}}>
+            {item.mixed&&i>0?<span style={{fontSize:9,color:"#FF8A65",fontWeight:700}}>＋</span>:<span style={{width:12}}/>}
             <span style={{fontSize:12}}>{foodEmoji(item.food)}</span>
             <span style={{fontFamily:font,fontSize:12,color:"#5D4037",flex:1}}>{item.food}{item.isNew&&<span style={{marginLeft:3,fontSize:9,background:"#FFCDD2",color:"#C62828",borderRadius:4,padding:"0px 4px",fontWeight:700}}>初</span>}</span>
             <span style={{fontFamily:font,fontWeight:700,fontSize:12,color:"#E65100"}}>{item.amount}{item.unit}</span>
