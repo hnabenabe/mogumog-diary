@@ -24,80 +24,23 @@ input,textarea,select{font-family:'Zen Maru Gothic',sans-serif;}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-// ============================================================
-// 🔥 Firebase設定 - ここを自分のプロジェクトの値に置き換えてください
-// ============================================================
-const firebaseConfig = {
-  apiKey: "AIzaSyAozqSzd3xuslxeJffGByqm7WzWFG5Qao0",
-  authDomain: "mogumog-diary.firebaseapp.com",
-  databaseURL: "https://mogumog-diary-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "mogumog-diary",
-  storageBucket: "mogumog-diary.firebasestorage.app",
-  messagingSenderId: "465833586941",
-  appId: "1:465833586941:web:527b5c7e69dfd74f984e94"
-};
+const firebaseConfig={apiKey:"AIzaSyAozqSzd3xuslxeJffGByqm7WzWFG5Qao0",authDomain:"mogumog-diary.firebaseapp.com",databaseURL:"https://mogumog-diary-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"mogumog-diary",storageBucket:"mogumog-diary.firebasestorage.app",messagingSenderId:"465833586941",appId:"1:465833586941:web:527b5c7e69dfd74f984e94"};
+const IS_FB=!firebaseConfig.apiKey.includes("YOUR_");
+let db=null;if(IS_FB){firebase.initializeApp(firebaseConfig);db=firebase.database();}
+function fbSave(p,d){if(!db){localStorage.setItem("mog_"+p,JSON.stringify(d));return;}db.ref(p).set(d);}
+function fbListen(p,cb){if(!db){try{cb(JSON.parse(localStorage.getItem("mog_"+p)));}catch(e){cb(null);}return()=>{};}const r=db.ref(p);r.on("value",s=>cb(s.val()));return()=>r.off("value");}
 
-const IS_FIREBASE_CONFIGURED = !firebaseConfig.apiKey.includes("YOUR_");
-
-let db = null;
-if (IS_FIREBASE_CONFIGURED) {
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.database();
-}
-
-// ── Firebase helpers ──
-function fbSave(path, data) {
-  if (!db) { localStorage.setItem("mog_"+path, JSON.stringify(data)); return; }
-  db.ref(path).set(data);
-}
-function fbListen(path, callback) {
-  if (!db) {
-    try { const d=JSON.parse(localStorage.getItem("mog_"+path)); callback(d); } catch{ callback(null); }
-    return ()=>{};
-  }
-  const ref = db.ref(path);
-  ref.on("value", snap => callback(snap.val()));
-  return () => ref.off("value");
-}
-
-// ── Constants ──
 const DAYS_JP=["日","月","火","水","木","金","土"];
 const MEAL_LABELS={1:["ごはん"],2:["朝","昼"],3:["朝","昼","夕"]};
-const STAGE_FOODS={
-  穀類:["10倍がゆ"],
-  野菜:["にんじん","かぼちゃ","ほうれん草","小松菜","ブロッコリー","トマト","大根","かぶ","さつまいも","じゃがいも","キャベツ","玉ねぎ","白菜"],
-  果物:["りんご","バナナ","みかん","いちご","もも"],
-  タンパク質:["豆腐","しらす","白身魚","きな粉"],
-  その他:["昆布だし","野菜スープ"],
-};
-const UNIT_DEFAULTS={};
-Object.values(STAGE_FOODS).flat().forEach(f=>{UNIT_DEFAULTS[f]=f==="豆腐"?"g":"小さじ";});
-const DEFAULT_NO_FREEZE=["豆腐"];
+const BASE_FOODS={穀類:["10倍がゆ"],野菜:["にんじん","かぼちゃ","ほうれん草","小松菜","ブロッコリー","トマト","大根","かぶ","さつまいも","じゃがいも","キャベツ","玉ねぎ","白菜"],果物:["りんご","バナナ","みかん","いちご","もも"],タンパク質:["豆腐","しらす","白身魚","きな粉"],その他:["昆布だし","野菜スープ"]};
+const DEFAULT_NO_FREEZE=["豆腐","バナナ","トマト"];
+function getAllFoods(cf){const m={};for(const[c,l]of Object.entries(BASE_FOODS))m[c]=[...l];if(cf)for(const[c,l]of Object.entries(cf)){if(!m[c])m[c]=[];for(const f of l)if(!m[c].includes(f))m[c].push(f);}return m;}
+function getUD(f){return f==="豆腐"?"g":"小さじ";}
+function getCat(f,af){for(const[c,l]of Object.entries(af))if(l.includes(f))return c;return"その他";}
+function foodEmoji(f){if(f.includes("がゆ"))return"🍚";if(f.includes("にんじん"))return"🥕";if(f.includes("かぼちゃ"))return"🎃";if(f.includes("ほうれん草")||f.includes("小松菜")||f.includes("ブロッコリー")||f.includes("キャベツ")||f.includes("白菜"))return"🥬";if(f.includes("トマト"))return"🍅";if(f.includes("さつまいも")||f.includes("じゃがいも"))return"🥔";if(f.includes("大根")||f.includes("かぶ")||f.includes("玉ねぎ"))return"🧅";if(f.includes("りんご"))return"🍎";if(f.includes("バナナ"))return"🍌";if(f.includes("みかん"))return"🍊";if(f.includes("いちご"))return"🍓";if(f.includes("もも"))return"🍑";if(f.includes("豆腐")||f.includes("きな粉"))return"🫘";if(f.includes("しらす")||f.includes("魚")||f.includes("ひらめ")||f.includes("鯛"))return"🐟";if(f.includes("だし")||f.includes("スープ"))return"🍲";return"🥄";}
 
-const SEED_MEALS={
-  "2026-02-28":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"かぼちゃ",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},
-  "2026-03-01":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"ブロッコリー",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"バナナ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},
-  "2026-03-02":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"ブロッコリー",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"かぼちゃ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"しらす",amount:1,unit:"小さじ",isNew:false,mixed:false}]},
-  "2026-03-03":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"ブロッコリー",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"かぼちゃ",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"しらす",amount:1,unit:"小さじ",isNew:false,mixed:false}]},
-  "2026-03-04":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"トマト",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"バナナ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},
-  "2026-03-05":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"トマト",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},
-  "2026-03-06":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"かぼちゃ",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},
-  "2026-03-07":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"じゃがいも",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]},
-  "2026-03-08":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"じゃがいも",amount:2,unit:"小さじ",isNew:false,mixed:true},{food:"かぶ",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"バナナ",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]},
-  "2026-03-09":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"かぶ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:true}]},
-  "2026-03-10":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},
-  "2026-03-11":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"白身魚",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"かぶ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:2,unit:"小さじ",isNew:false,mixed:true}]},
-  "2026-03-12":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"白身魚",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:2,unit:"小さじ",isNew:false,mixed:true},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},
-  "2026-03-13":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"じゃがいも",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},
-  "2026-03-14":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"白菜",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]},
-  "2026-03-15":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"白菜",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:true},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},
-  "2026-03-16":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:true},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"さつまいも",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},
-  "2026-03-17":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"さつまいも",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"白菜",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"白身魚",amount:3,unit:"小さじ",isNew:false,mixed:true}]},
-  "2026-03-18":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"さつまいも",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"りんご",amount:2,unit:"小さじ",isNew:false,mixed:true}]},
-  "2026-03-19":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"白菜",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]},
-};
+const SEED_MEALS={"2026-02-28":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"かぼちゃ",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},"2026-03-01":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"ブロッコリー",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"バナナ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},"2026-03-02":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"ブロッコリー",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"かぼちゃ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"しらす",amount:1,unit:"小さじ",isNew:false,mixed:false}]},"2026-03-03":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"ブロッコリー",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"かぼちゃ",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"しらす",amount:1,unit:"小さじ",isNew:false,mixed:false}]},"2026-03-04":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"トマト",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"バナナ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},"2026-03-05":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"トマト",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},"2026-03-06":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"かぼちゃ",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:1,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:6,unit:"g",isNew:false,mixed:false}]},"2026-03-07":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"じゃがいも",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]},"2026-03-08":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"じゃがいも",amount:2,unit:"小さじ",isNew:false,mixed:true},{food:"かぶ",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"バナナ",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]},"2026-03-09":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"かぶ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:true}]},"2026-03-10":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},"2026-03-11":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"白身魚",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"かぶ",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:2,unit:"小さじ",isNew:false,mixed:true}]},"2026-03-12":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"白身魚",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:2,unit:"小さじ",isNew:false,mixed:true},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},"2026-03-13":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"バナナ",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"じゃがいも",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"玉ねぎ",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},"2026-03-14":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"白菜",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]},"2026-03-15":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"白菜",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:true},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},"2026-03-16":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:true},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"さつまいも",amount:1,unit:"小さじ",isNew:true,mixed:false},{food:"りんご",amount:3,unit:"小さじ",isNew:false,mixed:false}]},"2026-03-17":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"さつまいも",amount:2,unit:"小さじ",isNew:false,mixed:false},{food:"白菜",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"白身魚",amount:3,unit:"小さじ",isNew:false,mixed:true}]},"2026-03-18":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"さつまいも",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"りんご",amount:2,unit:"小さじ",isNew:false,mixed:true}]},"2026-03-19":{"ごはん":[{food:"10倍がゆ",amount:5,unit:"小さじ",isNew:false,mixed:false},{food:"にんじん",amount:3,unit:"小さじ",isNew:false,mixed:false},{food:"白菜",amount:3,unit:"小さじ",isNew:false,mixed:true},{food:"豆腐",amount:12,unit:"g",isNew:false,mixed:false}]}};
 
-// ── Date helpers ──
 function dk(y,m,d){return`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;}
 function parseDk(s){const p=s.split("-");return{y:+p[0],m:+p[1]-1,d:+p[2]};}
 function todayKey(){const t=new Date();return dk(t.getFullYear(),t.getMonth(),t.getDate());}
@@ -106,421 +49,110 @@ function getFDow(y,m){return new Date(y,m,1).getDay();}
 function getDow(s){const{y,m,d}=parseDk(s);return new Date(y,m,d).getDay();}
 function dateLabel(s){const{m,d}=parseDk(s);return`${m+1}/${d}`;}
 function dateLabelFull(s){return`${dateLabel(s)}(${DAYS_JP[getDow(s)]})`;}
-function prevDay(s){const{y,m,d}=parseDk(s);const p=new Date(y,m,d-1);return dk(p.getFullYear(),p.getMonth(),p.getDate());}
-function getWeekRange(ds){
-  const{y,m,d}=parseDk(ds);const date=new Date(y,m,d);const dow=date.getDay();const diff=dow===0?-6:1-dow;
-  const mon=new Date(y,m,d+diff);const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6);
-  return{start:dk(mon.getFullYear(),mon.getMonth(),mon.getDate()),end:dk(sun.getFullYear(),sun.getMonth(),sun.getDate())};
-}
-function datesInRange(s,e){
-  const dates=[];const{y,m,d}=parseDk(s);let cur=new Date(y,m,d);
-  const{y:ey,m:em,d:ed}=parseDk(e);const end=new Date(ey,em,ed);
-  while(cur<=end){dates.push(dk(cur.getFullYear(),cur.getMonth(),cur.getDate()));cur=new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()+1);}
-  return dates;
-}
-function calcMonthAge(birthday){if(!birthday)return null;const b=new Date(birthday);const now=new Date();let mo=(now.getFullYear()-b.getFullYear())*12+(now.getMonth()-b.getMonth());if(now.getDate()<b.getDate())mo--;return Math.max(0,mo);}
+function getWeekRange(ds){const{y,m,d}=parseDk(ds);const date=new Date(y,m,d);const dow=date.getDay();const diff=dow===0?-6:1-dow;const mon=new Date(y,m,d+diff);const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6);return{start:dk(mon.getFullYear(),mon.getMonth(),mon.getDate()),end:dk(sun.getFullYear(),sun.getMonth(),sun.getDate())};}
+function datesInRange(s,e){const dates=[];const o=parseDk(s);let cur=new Date(o.y,o.m,o.d);const oe=parseDk(e);const end=new Date(oe.y,oe.m,oe.d);while(cur<=end){dates.push(dk(cur.getFullYear(),cur.getMonth(),cur.getDate()));cur=new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()+1);}return dates;}
+function calcMonthAge(b){if(!b)return null;const bd=new Date(b);const now=new Date();let mo=(now.getFullYear()-bd.getFullYear())*12+(now.getMonth()-bd.getMonth());if(now.getDate()<bd.getDate())mo--;return Math.max(0,mo);}
 function getStageLabel(mo){if(mo===null)return"";if(mo<5)return"離乳食前";if(mo<=6)return"初期（ゴックン期）";if(mo<=8)return"中期（モグモグ期）";if(mo<=11)return"後期（カミカミ期）";if(mo<=18)return"完了期（パクパク期）";return"離乳食完了";}
 
-function foodEmoji(f){
-  if(f.includes("がゆ"))return"🍚";if(f.includes("にんじん"))return"🥕";if(f.includes("かぼちゃ"))return"🎃";
-  if(f.includes("ほうれん草")||f.includes("小松菜")||f.includes("ブロッコリー")||f.includes("キャベツ")||f.includes("白菜"))return"🥬";
-  if(f.includes("トマト"))return"🍅";if(f.includes("さつまいも")||f.includes("じゃがいも"))return"🥔";
-  if(f.includes("大根")||f.includes("かぶ")||f.includes("玉ねぎ"))return"🧅";
-  if(f.includes("りんご"))return"🍎";if(f.includes("バナナ"))return"🍌";if(f.includes("みかん"))return"🍊";
-  if(f.includes("いちご"))return"🍓";if(f.includes("もも"))return"🍑";
-  if(f.includes("豆腐")||f.includes("きな粉"))return"🫘";if(f.includes("しらす")||f.includes("魚"))return"🐟";
-  if(f.includes("だし")||f.includes("スープ"))return"🍲";return"🥄";
-}
-function getCat(food){for(const[c,list]of Object.entries(STAGE_FOODS)){if(list.includes(food))return c;}return"その他";}
-
-// ── Styles ──
 const font="'Zen Maru Gothic',sans-serif";
-const pill=(active,ac="#FF8A65",at="#FFF")=>({padding:"7px 14px",border:"none",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:font,transition:"all 0.15s",background:active?ac:"#F5EDE3",color:active?at:"#8D7B6A",fontWeight:active?700:500});
+const pill=(a,ac="#FF8A65",at="#FFF")=>({padding:"7px 14px",border:"none",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:font,background:a?ac:"#F5EDE3",color:a?at:"#8D7B6A",fontWeight:a?700:500});
 const navBtn={width:36,height:36,border:"none",borderRadius:10,background:"#F5EDE3",color:"#8D7B6A",fontSize:14,cursor:"pointer",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"};
 const labelSt={display:"block",fontSize:12,fontWeight:700,color:"#8D7B6A",marginBottom:4,fontFamily:font};
 
-// ── Components ──
-function TabBar({active,onChange}){
-  const tabs=[{id:"calendar",label:"献立",icon:"📅"},{id:"cooking",label:"作るもの",icon:"🍳"},{id:"shopping",label:"買い物",icon:"🛒"},{id:"allergy",label:"記録",icon:"📋"},{id:"settings",label:"設定",icon:"⚙️"}];
-  return(<div style={{display:"flex",gap:2,background:"#F0E6D3",borderRadius:16,padding:3,position:"sticky",top:0,zIndex:10}}>
-    {tabs.map(t=>(<button key={t.id} onClick={()=>onChange(t.id)} style={{flex:1,padding:"8px 2px",border:"none",borderRadius:13,background:active===t.id?"#FFF":"transparent",color:active===t.id?"#5D4037":"#8D7B6A",fontWeight:active===t.id?700:500,fontSize:11,cursor:"pointer",transition:"all 0.2s",fontFamily:font,boxShadow:active===t.id?"0 2px 8px rgba(93,64,55,0.12)":"none"}}>
-      <span style={{fontSize:16,display:"block",marginBottom:1}}>{t.icon}</span>{t.label}
-    </button>))}
-  </div>);
-}
+function TabBar({active:a,onChange:o}){const tabs=[{id:"calendar",l:"献立",i:"📅"},{id:"cooking",l:"作るもの",i:"🍳"},{id:"shopping",l:"買い物",i:"🛒"},{id:"allergy",l:"記録",i:"📋"},{id:"settings",l:"設定",i:"⚙️"}];return(<div style={{display:"flex",gap:2,background:"#F0E6D3",borderRadius:16,padding:3,position:"sticky",top:0,zIndex:10}}>{tabs.map(t=>(<button key={t.id} onClick={()=>o(t.id)} style={{flex:1,padding:"8px 2px",border:"none",borderRadius:13,background:a===t.id?"#FFF":"transparent",color:a===t.id?"#5D4037":"#8D7B6A",fontWeight:a===t.id?700:500,fontSize:11,cursor:"pointer",fontFamily:font,boxShadow:a===t.id?"0 2px 8px rgba(93,64,55,0.12)":"none"}}><span style={{fontSize:16,display:"block",marginBottom:1}}>{t.i}</span>{t.l}</button>))}</div>);}
+function MonthNav({year:y,month:m,onPrev:p,onNext:n}){return(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 8px",marginBottom:4}}><button onClick={p} style={navBtn}>◀</button><span style={{fontFamily:font,fontWeight:700,fontSize:18,color:"#5D4037"}}>{y}年 {m+1}月</span><button onClick={n} style={navBtn}>▶</button></div>);}
+function WeekNav({selectedDate:sd,onDateChange:oc}){const{start:s,end:e}=getWeekRange(sd);const sh=(days)=>{const o=parseDk(s);const n=new Date(o.y,o.m,o.d+days);oc(dk(n.getFullYear(),n.getMonth(),n.getDate()));};return(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 8px",marginBottom:4}}><button onClick={()=>sh(-7)} style={navBtn}>◀</button><span style={{fontFamily:font,fontWeight:700,fontSize:15,color:"#5D4037"}}>{dateLabel(s)} 〜 {dateLabel(e)}</span><button onClick={()=>sh(7)} style={navBtn}>▶</button></div>);}
 
-function MonthNav({year,month,onPrev,onNext}){
-  return(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 8px",marginBottom:4}}>
-    <button onClick={onPrev} style={navBtn}>◀</button>
-    <span style={{fontFamily:font,fontWeight:700,fontSize:18,color:"#5D4037"}}>{year}年 {month+1}月</span>
-    <button onClick={onNext} style={navBtn}>▶</button>
-  </div>);
-}
+function CalendarGrid({year,month,meals,selectedDate,onSelectDate}){const dim=getDIM(year,month);const fdow=getFDow(year,month);const today=todayKey();const cells=[];for(let i=0;i<fdow;i++)cells.push(null);for(let d=1;d<=dim;d++)cells.push(d);return(<div><div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4,padding:"0 4px"}}>{DAYS_JP.map((d,i)=>(<div key={d} style={{textAlign:"center",fontSize:11,fontWeight:600,padding:"4px 0",color:i===0?"#E57373":i===6?"#64B5F6":"#8D7B6A",fontFamily:font}}>{d}</div>))}</div><div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,padding:"0 4px"}}>{cells.map((d,i)=>{if(d===null)return<div key={`e${i}`}/>;const key=dk(year,month,d);const isToday=key===today;const isSel=key===selectedDate;const hasAny=meals[key]&&Object.values(meals[key]).some(a=>Array.isArray(a)&&a.length>0);const dow=(fdow+d-1)%7;return(<button key={key} onClick={()=>onSelectDate(key)} style={{aspectRatio:"1",border:isSel?"2px solid #FF8A65":"2px solid transparent",borderRadius:12,background:isSel?"#FFF3E0":isToday?"#FFFDE7":"#FAFAF5",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:2}}><span style={{fontSize:13,fontWeight:isToday?800:500,color:dow===0?"#E57373":dow===6?"#64B5F6":"#5D4037",fontFamily:font}}>{d}</span>{hasAny&&<div style={{width:6,height:6,borderRadius:"50%",background:"#FF8A65",marginTop:1}}/>}</button>);})}</div></div>);}
 
-function WeekNav({selectedDate,onDateChange}){
-  const{start,end}=getWeekRange(selectedDate);
-  const shift=(days)=>{const{y,m,d}=parseDk(start);const n=new Date(y,m,d+days);onDateChange(dk(n.getFullYear(),n.getMonth(),n.getDate()));};
-  return(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 8px",marginBottom:4}}>
-    <button onClick={()=>shift(-7)} style={navBtn}>◀</button>
-    <span style={{fontFamily:font,fontWeight:700,fontSize:15,color:"#5D4037"}}>{dateLabel(start)} 〜 {dateLabel(end)}</span>
-    <button onClick={()=>shift(7)} style={navBtn}>▶</button>
-  </div>);
-}
-
-function CalendarGrid({year,month,meals,selectedDate,onSelectDate}){
-  const dim=getDIM(year,month);const fdow=getFDow(year,month);const today=todayKey();
-  const cells=[];for(let i=0;i<fdow;i++)cells.push(null);for(let d=1;d<=dim;d++)cells.push(d);
-  return(<div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4,padding:"0 4px"}}>
-      {DAYS_JP.map((d,i)=>(<div key={d} style={{textAlign:"center",fontSize:11,fontWeight:600,padding:"4px 0",color:i===0?"#E57373":i===6?"#64B5F6":"#8D7B6A",fontFamily:font}}>{d}</div>))}
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,padding:"0 4px"}}>
-      {cells.map((d,i)=>{
-        if(d===null)return<div key={`e${i}`}/>;
-        const key=dk(year,month,d);const isToday=key===today;const isSel=key===selectedDate;
-        const hasAny=meals[key]&&Object.values(meals[key]).some(arr=>Array.isArray(arr)&&arr.length>0);
-        const dow=(fdow+d-1)%7;
-        return(<button key={key} onClick={()=>onSelectDate(key)} style={{aspectRatio:"1",border:isSel?"2px solid #FF8A65":"2px solid transparent",borderRadius:12,background:isSel?"#FFF3E0":isToday?"#FFFDE7":"#FAFAF5",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:2,transition:"all 0.15s"}}>
-          <span style={{fontSize:13,fontWeight:isToday?800:500,color:dow===0?"#E57373":dow===6?"#64B5F6":"#5D4037",fontFamily:font}}>{d}</span>
-          {hasAny&&<div style={{width:6,height:6,borderRadius:"50%",background:"#FF8A65",marginTop:1}}/>}
-        </button>);
-      })}
-    </div>
-  </div>);
-}
-
-function MealEditor({date,meals,onSave,allergies,mealCount}){
-  const labels=MEAL_LABELS[mealCount]||["ごはん"];
-  const dayData=meals[date]||{};const dayMeta=meals[`${date}_meta`]||{};
-  const[editingMeal,setEditingMeal]=React.useState(null);
-  const[items,setItems]=React.useState([]);
-  const[showPicker,setShowPicker]=React.useState(false);
-  const[activeCat,setActiveCat]=React.useState("穀類");
-  const[reaction,setReaction]=React.useState("");
-  const[eatenAmt,setEatenAmt]=React.useState("ふつう");
-  const allergyNG=Object.keys(allergies).filter(f=>allergies[f]?.status==="NG");
-
-  const startEdit=(mt)=>{
-    const ex=Array.isArray(dayData[mt])?dayData[mt]:[];const meta=dayMeta[mt]||{};
-    setItems(ex.map(i=>({...i})));setReaction(meta.reaction||"");setEatenAmt(meta.amount||"ふつう");
-    setEditingMeal(mt);setShowPicker(false);
-  };
-  const addFood=(food)=>{if(items.find(i=>i.food===food))return;setItems([...items,{food,amount:UNIT_DEFAULTS[food]==="g"?6:1,unit:UNIT_DEFAULTS[food]||"小さじ",isNew:false,mixed:false}]);setShowPicker(false);};
-  const updateItem=(idx,field,val)=>{const n=[...items];n[idx]={...n[idx],[field]:val};setItems(n);};
-  const removeItem=(idx)=>setItems(items.filter((_,i)=>i!==idx));
-  const handleSave=()=>{const ud={...dayData,[editingMeal]:items};const um={...dayMeta,[editingMeal]:{reaction,amount:eatenAmt}};onSave(date,ud,um);setEditingMeal(null);};
-  const handleClear=()=>{const ud={...dayData};delete ud[editingMeal];const um={...dayMeta};delete um[editingMeal];onSave(date,ud,um);setEditingMeal(null);};
-
+function MealEditor({date,meals,onSave,allergies,mealCount,allFoods}){
+  const labels=MEAL_LABELS[mealCount]||["ごはん"];const dayData=meals[date]||{};const dayMeta=meals[`${date}_meta`]||{};
+  const[em,setEm]=React.useState(null);const[items,setItems]=React.useState([]);const[sp,setSp]=React.useState(false);const[ac,setAc]=React.useState(Object.keys(allFoods)[0]);const[rx,setRx]=React.useState("");const[ea,setEa]=React.useState("ふつう");
+  const ng=Object.keys(allergies).filter(f=>allergies[f]?.status==="NG");
+  const startEdit=(mt)=>{const ex=Array.isArray(dayData[mt])?dayData[mt]:[];const meta=dayMeta[mt]||{};setItems(ex.map(i=>({...i})));setRx(meta.reaction||"");setEa(meta.amount||"ふつう");setEm(mt);setSp(false);};
+  const addFood=(f)=>{if(items.find(i=>i.food===f))return;setItems([...items,{food:f,amount:getUD(f)==="g"?6:1,unit:getUD(f),isNew:false,mixed:false}]);setSp(false);};
+  const ui=(idx,field,val)=>{const n=[...items];n[idx]={...n[idx],[field]:val};setItems(n);};
+  const ri=(idx)=>setItems(items.filter((_,i)=>i!==idx));
+  const save=()=>{onSave(date,{...dayData,[em]:items},{...dayMeta,[em]:{reaction:rx,amount:ea}});setEm(null);};
+  const clear=()=>{const ud={...dayData};delete ud[em];const um={...dayMeta};delete um[em];onSave(date,ud,um);setEm(null);};
   if(!date)return null;
+  if(em&&sp)return(<div style={{padding:"12px 0"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><button onClick={()=>setSp(false)} style={pill(false)}>← 戻る</button><span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:14}}>食材を追加</span></div><div style={{display:"flex",gap:4,overflowX:"auto",marginBottom:10,paddingBottom:4}}>{Object.keys(allFoods).map(cat=>(<button key={cat} onClick={()=>setAc(cat)} style={{...pill(ac===cat),whiteSpace:"nowrap"}}>{cat}</button>))}</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(allFoods[ac]||[]).map(food=>{const isNG=ng.includes(food);const al=!!items.find(i=>i.food===food);return(<button key={food} onClick={()=>!isNG&&!al&&addFood(food)} style={{padding:"8px 14px",borderRadius:20,border:"none",background:isNG?"#FFCDD2":al?"#E0E0E0":"#F5EDE3",color:isNG?"#C62828":al?"#9E9E9E":"#5D4037",fontSize:13,cursor:isNG||al?"not-allowed":"pointer",fontFamily:font,fontWeight:500,opacity:isNG?0.6:1,textDecoration:isNG?"line-through":"none"}}>{foodEmoji(food)} {food} {al?"✓":""}</button>);})}</div></div>);
+  if(em)return(<div style={{padding:"12px 0"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><button onClick={()=>setEm(null)} style={pill(false)}>← 戻る</button><span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:15}}>{dateLabelFull(date)} {em}</span><div style={{width:60}}/></div><div style={{marginBottom:12}}>{items.map((item,idx)=>(<div key={idx}>{item.mixed&&idx>0&&(<div style={{textAlign:"center",margin:"-2px 0",fontSize:10,color:"#FF8A65",fontFamily:font,fontWeight:700}}>＋ まぜる</div>)}<div style={{display:"flex",alignItems:"center",gap:5,padding:"8px 10px",background:item.mixed&&idx>0?"#FFF3E0":"#FFF8F0",borderRadius:12,marginBottom:6,borderLeft:item.mixed&&idx>0?"3px solid #FF8A65":"3px solid transparent"}}><span style={{fontSize:15}}>{foodEmoji(item.food)}</span><span style={{flex:1,fontFamily:font,fontWeight:600,fontSize:13,color:"#5D4037",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.food}</span><div style={{display:"flex",alignItems:"center",gap:3,flexShrink:0}}><button onClick={()=>ui(idx,"amount",Math.max(1,item.amount-1))} style={{width:26,height:26,borderRadius:8,border:"none",background:"#F5EDE3",fontSize:13,cursor:"pointer",fontWeight:700,color:"#8D7B6A"}}>−</button><span style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#E65100",minWidth:24,textAlign:"center"}}>{item.amount}</span><button onClick={()=>ui(idx,"amount",item.amount+1)} style={{width:26,height:26,borderRadius:8,border:"none",background:"#F5EDE3",fontSize:13,cursor:"pointer",fontWeight:700,color:"#8D7B6A"}}>+</button><span style={{fontFamily:font,fontSize:10,color:"#8D7B6A",width:28}}>{item.unit}</span></div>{idx>0&&(<button onClick={()=>ui(idx,"mixed",!item.mixed)} style={{width:22,height:22,borderRadius:6,border:"none",background:item.mixed?"#FF8A65":"#F5EDE3",color:item.mixed?"#FFF":"#8D7B6A",fontSize:10,cursor:"pointer",fontWeight:700,fontFamily:font}}>＋</button>)}<label style={{display:"flex",alignItems:"center",gap:2,cursor:"pointer",flexShrink:0}}><input type="checkbox" checked={!!item.isNew} onChange={e=>ui(idx,"isNew",e.target.checked)} style={{accentColor:"#FF8A65",width:14,height:14}}/><span style={{fontFamily:font,fontSize:10,color:"#E65100",fontWeight:700}}>初</span></label><button onClick={()=>ri(idx)} style={{width:22,height:22,borderRadius:6,border:"none",background:"#FFCDD2",color:"#C62828",fontSize:11,cursor:"pointer"}}>✕</button></div></div>))}<button onClick={()=>setSp(true)} style={{width:"100%",padding:"10px",borderRadius:12,border:"2px dashed #E0D5C5",background:"transparent",color:"#BFAE9A",fontSize:13,cursor:"pointer",fontFamily:font}}>+ 食材を追加</button></div><div style={{marginBottom:10}}><label style={labelSt}>食べた量</label><div style={{display:"flex",gap:6}}>{["少なめ","ふつう","よく食べた"].map(a=>(<button key={a} onClick={()=>setEa(a)} style={{...pill(ea===a,"#FFE0B2","#E65100"),flex:1}}>{a==="少なめ"?"😐":a==="ふつう"?"😊":"😋"} {a}</button>))}</div></div><div style={{marginBottom:12}}><label style={labelSt}>反応メモ</label><textarea value={rx} onChange={e=>setRx(e.target.value)} placeholder="湿疹、嫌がった等..." style={{width:"100%",border:"2px solid #F0E6D3",borderRadius:12,padding:"8px 12px",fontSize:13,fontFamily:font,color:"#5D4037",background:"#FAFAF5",boxSizing:"border-box",minHeight:40,resize:"vertical",outline:"none"}}/></div><div style={{display:"flex",gap:8}}><button onClick={clear} style={{padding:"12px 20px",border:"none",borderRadius:14,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:font,background:"#FFCDD2",color:"#C62828",flex:1}}>🗑 クリア</button><button onClick={save} style={{padding:"12px 20px",border:"none",borderRadius:14,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:font,background:"#FF8A65",color:"#FFF",flex:2}}>✓ 保存</button></div></div>);
+  return(<div style={{padding:"12px 0"}}><div style={{fontFamily:font,fontWeight:700,fontSize:16,color:"#5D4037",marginBottom:10,textAlign:"center"}}>📅 {dateLabelFull(date)} の献立</div>{labels.map(mt=>{const mi=Array.isArray(dayData[mt])?dayData[mt]:[];const meta=dayMeta[mt]||{};const has=mi.length>0;const icon=mt==="朝"?"🌅":mt==="昼"?"☀️":mt==="夕"?"🌙":"🍽️";return(<button key={mt} onClick={()=>startEdit(mt)} style={{width:"100%",border:"none",borderRadius:14,background:has?"#FFF8F0":"#FAFAF5",padding:"12px 14px",marginBottom:8,cursor:"pointer",textAlign:"left",boxShadow:has?"0 1px 4px rgba(93,64,55,0.08)":"none"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#5D4037"}}>{icon} {mt}</span>{!has&&<span style={{fontSize:12,color:"#BFAE9A"}}>+ タップして追加</span>}</div>{has&&(<div style={{marginTop:6}}>{mi.map((item,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:2,paddingLeft:item.mixed&&i>0?8:0,borderLeft:item.mixed&&i>0?"2px solid #FF8A65":"2px solid transparent"}}>{item.mixed&&i>0?<span style={{fontSize:9,color:"#FF8A65",fontWeight:700}}>＋</span>:<span style={{width:12}}/>}<span style={{fontSize:12}}>{foodEmoji(item.food)}</span><span style={{fontFamily:font,fontSize:12,color:"#5D4037",flex:1}}>{item.food}{item.isNew&&<span style={{marginLeft:3,fontSize:9,background:"#FFCDD2",color:"#C62828",borderRadius:4,padding:"0px 4px",fontWeight:700}}>初</span>}</span><span style={{fontFamily:font,fontWeight:700,fontSize:12,color:"#E65100"}}>{item.amount}{item.unit}</span></div>))}{meta.amount&&(<div style={{fontSize:10,color:"#8D7B6A",marginTop:4,fontFamily:font}}>{meta.amount==="少なめ"?"😐":meta.amount==="ふつう"?"😊":"😋"} {meta.amount}{meta.reaction&&` ・ ${meta.reaction}`}</div>)}</div>)}</button>);})}</div>);
+}
 
-  if(editingMeal&&showPicker){
-    return(<div style={{padding:"12px 0"}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-        <button onClick={()=>setShowPicker(false)} style={pill(false)}>← 戻る</button>
-        <span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:14}}>食材を追加</span>
-      </div>
-      <div style={{display:"flex",gap:4,overflowX:"auto",marginBottom:10,paddingBottom:4}}>
-        {Object.keys(STAGE_FOODS).map(cat=>(<button key={cat} onClick={()=>setActiveCat(cat)} style={{...pill(activeCat===cat),whiteSpace:"nowrap"}}>{cat}</button>))}
-      </div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-        {STAGE_FOODS[activeCat].map(food=>{const isNG=allergyNG.includes(food);const already=!!items.find(i=>i.food===food);
-          return(<button key={food} onClick={()=>!isNG&&!already&&addFood(food)} style={{padding:"8px 14px",borderRadius:20,border:"none",background:isNG?"#FFCDD2":already?"#E0E0E0":"#F5EDE3",color:isNG?"#C62828":already?"#9E9E9E":"#5D4037",fontSize:13,cursor:isNG||already?"not-allowed":"pointer",fontFamily:font,fontWeight:500,opacity:isNG?0.6:1,textDecoration:isNG?"line-through":"none"}}>{foodEmoji(food)} {food} {already?"✓":""}</button>);
-        })}
-      </div>
-    </div>);
-  }
+function CookingView({meals,selectedDate,noFreezeList,allFoods,cookingData,onSaveCooking}){
+  const{start,end}=getWeekRange(selectedDate);const wk=start;const weekDates=datesInRange(start,end);const noFreeze=new Set(noFreezeList);
+  const[ed,setEd]=React.useState(null);const[ei,setEi]=React.useState([]);const[sp,setSp]=React.useState(false);const[ac,setAc]=React.useState(Object.keys(allFoods)[0]);const[showAdd,setShowAdd]=React.useState(false);
+  const savedWeek=cookingData[wk];
+  const autoCalc=React.useMemo(()=>{
+    const wu={};weekDates.forEach(d=>{const dd=meals[d];if(!dd)return;Object.values(dd).forEach(arr=>{if(!Array.isArray(arr))return;const da={};arr.forEach(item=>{da[item.food]=(da[item.food]||0)+item.amount;if(!wu[item.food])wu[item.food]=[];});Object.entries(da).forEach(([food,total])=>{if(!wu[food])wu[food]=[];const ex=wu[food].find(u=>u.date===d);if(ex)ex.amount+=total;else wu[food].push({date:d,amount:total,unit:getUD(food)});});});});
+    const result={};const prev=(()=>{const o=parseDk(start);const p=new Date(o.y,o.m,o.d-1);return dk(p.getFullYear(),p.getMonth(),p.getDate());})();
+    Object.entries(wu).forEach(([food,usages])=>{if(noFreeze.has(food)){usages.forEach(({date,amount,unit})=>{if(!result[date])result[date]=[];result[date].push({food,amount,unit,type:"fresh"});});}else{const total=usages.reduce((s,u)=>s+u.amount,0);const counts={};usages.forEach(u=>{counts[u.amount]=(counts[u.amount]||0)+1;});const bd=Object.entries(counts).sort((a,b)=>+a[0]-+b[0]).map(([a,c])=>usages[0].unit==="g"?`${a}g×${c}`:`小${a}×${c}`).join("、");if(!result[prev])result[prev]=[];result[prev].push({food,amount:total,unit:usages[0].unit,type:"frozen",breakdown:bd});}});
+    return result;
+  },[meals,start,noFreezeList]);
+  const weekData=savedWeek||autoCalc;const schedule=Object.keys(weekData).filter(d=>weekData[d]&&weekData[d].length>0).sort();
+  const startEditDay=(d)=>{setEi((weekData[d]||[]).map(i=>({...i})));setEd(d);setSp(false);};
+  const addCI=(f)=>{if(ei.find(i=>i.food===f))return;setEi([...ei,{food:f,amount:1,unit:getUD(f),type:noFreeze.has(f)?"fresh":"frozen",breakdown:""}]);setSp(false);};
+  const uci=(idx,field,val)=>{const n=[...ei];n[idx]={...n[idx],[field]:val};setEi(n);};
+  const rci=(idx)=>setEi(ei.filter((_,i)=>i!==idx));
+  const saveDay=()=>{const u={...weekData,[ed]:ei.length>0?ei:undefined};if(ei.length===0)delete u[ed];const c={};Object.entries(u).forEach(([k,v])=>{if(v&&v.length>0)c[k]=v;});onSaveCooking(wk,Object.keys(c).length>0?c:null);setEd(null);};
+  const autoFill=()=>onSaveCooking(wk,null);
+  const addDay=(d)=>{startEditDay(d);setShowAdd(false);};
+  // Extend date range for adding days (include 2 days before week)
+  const extStart=(()=>{const o=parseDk(start);const p=new Date(o.y,o.m,o.d-2);return dk(p.getFullYear(),p.getMonth(),p.getDate());})();
 
-  if(editingMeal){
-    return(<div style={{padding:"12px 0"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-        <button onClick={()=>setEditingMeal(null)} style={pill(false)}>← 戻る</button>
-        <span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:15}}>{dateLabelFull(date)} {editingMeal}</span>
-        <div style={{width:60}}/>
-      </div>
-      <div style={{marginBottom:12}}>
-        {items.map((item,idx)=>(<div key={idx}>
-          {item.mixed&&idx>0&&(<div style={{textAlign:"center",margin:"-2px 0",fontSize:10,color:"#FF8A65",fontFamily:font,fontWeight:700}}>＋ まぜる</div>)}
-          <div style={{display:"flex",alignItems:"center",gap:5,padding:"8px 10px",background:item.mixed&&idx>0?"#FFF3E0":"#FFF8F0",borderRadius:12,marginBottom:6,boxShadow:"0 1px 3px rgba(93,64,55,0.06)",borderLeft:item.mixed&&idx>0?"3px solid #FF8A65":"3px solid transparent"}}>
-          <span style={{fontSize:15}}>{foodEmoji(item.food)}</span>
-          <span style={{flex:1,fontFamily:font,fontWeight:600,fontSize:13,color:"#5D4037",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.food}</span>
-          <div style={{display:"flex",alignItems:"center",gap:3,flexShrink:0}}>
-            <button onClick={()=>updateItem(idx,"amount",Math.max(1,item.amount-1))} style={{width:26,height:26,borderRadius:8,border:"none",background:"#F5EDE3",fontSize:13,cursor:"pointer",fontWeight:700,color:"#8D7B6A"}}>−</button>
-            <span style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#E65100",minWidth:24,textAlign:"center"}}>{item.amount}</span>
-            <button onClick={()=>updateItem(idx,"amount",item.amount+1)} style={{width:26,height:26,borderRadius:8,border:"none",background:"#F5EDE3",fontSize:13,cursor:"pointer",fontWeight:700,color:"#8D7B6A"}}>+</button>
-            <span style={{fontFamily:font,fontSize:10,color:"#8D7B6A",width:28}}>{item.unit}</span>
-          </div>
-          {idx>0&&(<button onClick={()=>updateItem(idx,"mixed",!item.mixed)} style={{width:22,height:22,borderRadius:6,border:"none",background:item.mixed?"#FF8A65":"#F5EDE3",color:item.mixed?"#FFF":"#8D7B6A",fontSize:10,cursor:"pointer",flexShrink:0,fontWeight:700,fontFamily:font}}>＋</button>)}
-          <label style={{display:"flex",alignItems:"center",gap:2,cursor:"pointer",flexShrink:0}}>
-            <input type="checkbox" checked={!!item.isNew} onChange={e=>updateItem(idx,"isNew",e.target.checked)} style={{accentColor:"#FF8A65",width:14,height:14}}/>
-            <span style={{fontFamily:font,fontSize:10,color:"#E65100",fontWeight:700}}>初</span>
-          </label>
-          <button onClick={()=>removeItem(idx)} style={{width:22,height:22,borderRadius:6,border:"none",background:"#FFCDD2",color:"#C62828",fontSize:11,cursor:"pointer",flexShrink:0}}>✕</button>
-        </div></div>))}
-        <button onClick={()=>setShowPicker(true)} style={{width:"100%",padding:"10px",borderRadius:12,border:"2px dashed #E0D5C5",background:"transparent",color:"#BFAE9A",fontSize:13,cursor:"pointer",fontFamily:font}}>+ 食材を追加</button>
-      </div>
-      <div style={{marginBottom:10}}>
-        <label style={labelSt}>食べた量</label>
-        <div style={{display:"flex",gap:6}}>
-          {["少なめ","ふつう","よく食べた"].map(a=>(<button key={a} onClick={()=>setEatenAmt(a)} style={{...pill(eatenAmt===a,"#FFE0B2","#E65100"),flex:1}}>{a==="少なめ"?"😐":a==="ふつう"?"😊":"😋"} {a}</button>))}
-        </div>
-      </div>
-      <div style={{marginBottom:12}}>
-        <label style={labelSt}>反応メモ</label>
-        <textarea value={reaction} onChange={e=>setReaction(e.target.value)} placeholder="湿疹、嫌がった等..."
-          style={{width:"100%",border:"2px solid #F0E6D3",borderRadius:12,padding:"8px 12px",fontSize:13,fontFamily:font,color:"#5D4037",background:"#FAFAF5",boxSizing:"border-box",minHeight:40,resize:"vertical",outline:"none"}}/>
-      </div>
-      <div style={{display:"flex",gap:8}}>
-        <button onClick={handleClear} style={{padding:"12px 20px",border:"none",borderRadius:14,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:font,background:"#FFCDD2",color:"#C62828",flex:1}}>🗑 クリア</button>
-        <button onClick={handleSave} style={{padding:"12px 20px",border:"none",borderRadius:14,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:font,background:"#FF8A65",color:"#FFF",flex:2}}>✓ 保存</button>
-      </div>
-    </div>);
-  }
+  if(ed&&sp)return(<div style={{padding:"12px 0"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><button onClick={()=>setSp(false)} style={pill(false)}>← 戻る</button><span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:14}}>食材を追加</span></div><div style={{display:"flex",gap:4,overflowX:"auto",marginBottom:10,paddingBottom:4}}>{Object.keys(allFoods).map(cat=>(<button key={cat} onClick={()=>setAc(cat)} style={{...pill(ac===cat),whiteSpace:"nowrap"}}>{cat}</button>))}</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(allFoods[ac]||[]).map(f=>{const al=!!ei.find(i=>i.food===f);return(<button key={f} onClick={()=>!al&&addCI(f)} style={{padding:"8px 14px",borderRadius:20,border:"none",background:al?"#E0E0E0":"#F5EDE3",color:al?"#9E9E9E":"#5D4037",fontSize:13,cursor:al?"not-allowed":"pointer",fontFamily:font,fontWeight:500}}>{foodEmoji(f)} {f} {al?"✓":""}</button>);})}</div></div>);
+  if(ed)return(<div style={{padding:"12px 0"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><button onClick={()=>setEd(null)} style={pill(false)}>← 戻る</button><span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:15}}>🍳 {dateLabelFull(ed)}</span><div style={{width:60}}/></div><div style={{marginBottom:12}}>{ei.map((item,idx)=>(<div key={idx} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 10px",background:item.type==="fresh"?"#FFF3E0":"#E3F2FD",borderRadius:12,marginBottom:6}}><span style={{fontSize:15}}>{foodEmoji(item.food)}</span><span style={{flex:1,fontFamily:font,fontWeight:600,fontSize:13,color:"#5D4037",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.food}</span><div style={{display:"flex",alignItems:"center",gap:3,flexShrink:0}}><button onClick={()=>uci(idx,"amount",Math.max(1,item.amount-1))} style={{width:26,height:26,borderRadius:8,border:"none",background:"rgba(255,255,255,0.6)",fontSize:13,cursor:"pointer",fontWeight:700,color:"#8D7B6A"}}>−</button><span style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#E65100",minWidth:24,textAlign:"center"}}>{item.amount}</span><button onClick={()=>uci(idx,"amount",item.amount+1)} style={{width:26,height:26,borderRadius:8,border:"none",background:"rgba(255,255,255,0.6)",fontSize:13,cursor:"pointer",fontWeight:700,color:"#8D7B6A"}}>+</button><span style={{fontFamily:font,fontSize:10,color:"#8D7B6A",width:28}}>{item.unit}</span></div><button onClick={()=>uci(idx,"type",item.type==="frozen"?"fresh":"frozen")} style={{padding:"2px 6px",borderRadius:6,border:"none",background:item.type==="frozen"?"#1565C0":"#E65100",color:"#FFF",fontSize:9,cursor:"pointer",fontFamily:font,fontWeight:700,flexShrink:0}}>{item.type==="frozen"?"🧊冷凍":"🔥当日"}</button><button onClick={()=>rci(idx)} style={{width:22,height:22,borderRadius:6,border:"none",background:"#FFCDD2",color:"#C62828",fontSize:11,cursor:"pointer"}}>✕</button></div>))}<button onClick={()=>setSp(true)} style={{width:"100%",padding:"10px",borderRadius:12,border:"2px dashed #E0D5C5",background:"transparent",color:"#BFAE9A",fontSize:13,cursor:"pointer",fontFamily:font}}>+ 食材を追加</button></div><button onClick={saveDay} style={{padding:"12px 20px",border:"none",borderRadius:14,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:font,background:"#FF8A65",color:"#FFF",width:"100%"}}>✓ 保存</button></div>);
 
+  return(<div style={{padding:"8px 0"}}><div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:12}}><button onClick={autoFill} style={{...pill(false),fontSize:11}}>🔄 献立から再計算</button><button onClick={()=>setShowAdd(true)} style={{...pill(false),fontSize:11}}>+ 日を追加</button></div>{savedWeek&&<div style={{textAlign:"center",marginBottom:8}}><span style={{fontFamily:font,fontSize:10,color:"#2E7D32",background:"#E8F5E9",padding:"2px 10px",borderRadius:8}}>✏️ 手動編集済み</span></div>}{!savedWeek&&<div style={{textAlign:"center",marginBottom:8}}><span style={{fontFamily:font,fontSize:10,color:"#8D7B6A",background:"#F5EDE3",padding:"2px 10px",borderRadius:8}}>🤖 献立から自動計算</span></div>}{showAdd&&(<div style={{background:"#FFF8F0",borderRadius:14,padding:"12px",marginBottom:8}}><div style={{fontFamily:font,fontSize:12,fontWeight:700,color:"#5D4037",marginBottom:8}}>追加する日を選択:</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{datesInRange(extStart,end).map(d=>(<button key={d} onClick={()=>addDay(d)} style={{...pill(false),fontSize:12}}>{dateLabelFull(d)}</button>))}</div><button onClick={()=>setShowAdd(false)} style={{...pill(false),fontSize:11,marginTop:8}}>キャンセル</button></div>)}{schedule.length===0?(<div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🍳</div><div style={{fontFamily:font,fontSize:14}}>献立を登録するか手動で追加してください</div></div>):(schedule.map(d=>{const dayItems=weekData[d]||[];const frozen=dayItems.filter(i=>i.type==="frozen");const fresh=dayItems.filter(i=>i.type==="fresh");return(<button key={d} onClick={()=>startEditDay(d)} style={{width:"100%",border:"none",borderRadius:14,background:"#FFF8F0",padding:"12px 14px",marginBottom:8,cursor:"pointer",textAlign:"left",boxShadow:"0 1px 3px rgba(93,64,55,0.06)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><span style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#5D4037"}}>📅 {dateLabelFull(d)}</span><span style={{fontSize:10,color:"#BFAE9A"}}>タップで編集</span></div>{frozen.length>0&&(<div style={{marginBottom:fresh.length>0?6:0}}><div style={{fontSize:10,fontWeight:700,color:"#1565C0",marginBottom:4,fontFamily:font}}>🧊 冷凍ストック</div>{frozen.map((item,i)=>(<div key={i} style={{padding:"4px 8px",background:"#E3F2FD",borderRadius:8,marginBottom:2,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontFamily:font,fontSize:12,color:"#1565C0"}}>{foodEmoji(item.food)} {item.food}</span><span style={{fontFamily:font,fontWeight:700,fontSize:12,color:"#0D47A1"}}>{item.amount}{item.unit}{item.breakdown?` (${item.breakdown})`:""}</span></div>))}</div>)}{fresh.length>0&&(<div><div style={{fontSize:10,fontWeight:700,color:"#E65100",marginBottom:4,fontFamily:font}}>🔥 当日調理</div>{fresh.map((item,i)=>(<div key={i} style={{padding:"4px 8px",background:"#FFF3E0",borderRadius:8,marginBottom:2,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontFamily:font,fontSize:12,color:"#E65100"}}>{foodEmoji(item.food)} {item.food}</span><span style={{fontFamily:font,fontWeight:700,fontSize:12,color:"#BF360C"}}>{item.amount}{item.unit}</span></div>))}</div>)}</button>);}))}  </div>);
+}
+
+function ShoppingView({meals,selectedDate,allFoods}){const{start,end}=getWeekRange(selectedDate);const weekDates=datesInRange(start,end);const foodSet=new Set();weekDates.forEach(d=>{const dd=meals[d];if(!dd)return;Object.values(dd).forEach(arr=>{if(!Array.isArray(arr))return;arr.forEach(item=>foodSet.add(item.food));});});const grouped={};[...foodSet].forEach(f=>{const c=getCat(f,allFoods);if(!grouped[c])grouped[c]=[];grouped[c].push(f);});return(<div style={{padding:"8px 0"}}><div style={{textAlign:"center",marginBottom:12}}><div style={{fontFamily:font,fontSize:11,color:"#BFAE9A"}}>献立から自動生成</div></div>{foodSet.size===0?(<div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🛒</div><div style={{fontFamily:font,fontSize:14}}>この週の献立を登録すると自動生成されます</div></div>):(<div style={{background:"#FFF8F0",borderRadius:14,padding:"14px"}}>{Object.entries(grouped).map(([cat,items])=>(<div key={cat} style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:"#8D7B6A",marginBottom:6,fontFamily:font}}>■ {cat}</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{items.map(f=>(<span key={f} style={{fontSize:13,background:"#E3F2FD",color:"#1565C0",borderRadius:14,padding:"6px 12px",fontFamily:font,fontWeight:500}}>{foodEmoji(f)} {f}</span>))}</div></div>))}</div>)}</div>);}
+
+function AllergyView({allergies,onUpdate,allFoods}){const[ef,setEf]=React.useState(null);const[note,setNote]=React.useState("");const[status,setStatus]=React.useState("未確認");const se=(f)=>{setEf(f);setStatus(allergies[f]?.status||"未確認");setNote(allergies[f]?.note||"");};const hs=()=>{onUpdate(ef,{status,note,date:new Date().toISOString().slice(0,10)});setEf(null);};if(ef)return(<div style={{padding:"12px 0"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}><button onClick={()=>setEf(null)} style={pill(false)}>← 戻る</button><span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:16}}>{foodEmoji(ef)} {ef}</span></div><div style={{marginBottom:16}}><label style={labelSt}>状態</label><div style={{display:"flex",gap:6}}>{[{v:"OK",e:"✅",bg:"#C8E6C9",c:"#2E7D32"},{v:"様子見",e:"👀",bg:"#FFF9C4",c:"#F57F17"},{v:"NG",e:"🚫",bg:"#FFCDD2",c:"#C62828"},{v:"未確認",e:"❓",bg:"#E0E0E0",c:"#616161"}].map(s=>(<button key={s.v} onClick={()=>setStatus(s.v)} style={{...pill(status===s.v,s.bg,s.c),flex:1}}>{s.e} {s.v}</button>))}</div></div><div style={{marginBottom:16}}><label style={labelSt}>メモ</label><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="症状の詳細..." style={{width:"100%",border:"2px solid #F0E6D3",borderRadius:12,padding:"8px 12px",fontSize:13,fontFamily:font,color:"#5D4037",background:"#FAFAF5",boxSizing:"border-box",minHeight:60,resize:"vertical",outline:"none"}}/></div><button onClick={hs} style={{padding:"12px 20px",border:"none",borderRadius:14,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:font,background:"#FF8A65",color:"#FFF",width:"100%"}}>✓ 保存</button></div>);return(<div style={{padding:"8px 0"}}><div style={{fontFamily:font,fontSize:12,color:"#8D7B6A",marginBottom:12,textAlign:"center"}}>食材をタップしてアレルギーチェック記録を管理</div>{Object.entries(allFoods).map(([cat,foods])=>(<div key={cat} style={{marginBottom:14}}><div style={{fontSize:13,fontWeight:700,color:"#5D4037",marginBottom:6,fontFamily:font}}>■ {cat}</div><div style={{display:"flex",flexWrap:"wrap",gap:5}}>{foods.map(food=>{const st=allergies[food]?.status||"未確認";const bgMap={OK:"#C8E6C9",NG:"#FFCDD2","様子見":"#FFF9C4","未確認":"#F5EDE3"};const colMap={OK:"#2E7D32",NG:"#C62828","様子見":"#F57F17","未確認":"#8D7B6A"};const emoji={OK:"✅",NG:"🚫","様子見":"👀","未確認":""};return(<button key={food} onClick={()=>se(food)} style={{padding:"5px 10px",borderRadius:16,border:"none",background:bgMap[st],color:colMap[st],fontSize:12,cursor:"pointer",fontFamily:font,fontWeight:500}}>{emoji[st]} {foodEmoji(food)} {food}</button>);})}</div></div>))}</div>);}
+
+function SettingsView({birthday,setBirthday,mealCount,setMealCount,noFreezeList,setNoFreezeList,customFoods,setCustomFoods,onSaveSettings,allFoods}){
+  const monthAge=calcMonthAge(birthday);const allList=Object.values(allFoods).flat();const cats=Object.keys(allFoods);
+  const[nfn,setNfn]=React.useState("");const[nfc,setNfc]=React.useState("野菜");
+  const addNF=(f)=>{if(!noFreezeList.includes(f)){const u=[...noFreezeList,f];setNoFreezeList(u);onSaveSettings({birthday,mealCount,noFreezeList:u,customFoods});}};
+  const removeNF=(f)=>{const u=noFreezeList.filter(x=>x!==f);setNoFreezeList(u);onSaveSettings({birthday,mealCount,noFreezeList:u,customFoods});};
+  const addCF=()=>{const name=nfn.trim();if(!name||allList.includes(name))return;const u={...customFoods};if(!u[nfc])u[nfc]=[];u[nfc].push(name);setCustomFoods(u);setNfn("");onSaveSettings({birthday,mealCount,noFreezeList,customFoods:u});};
+  const removeCF=(cat,food)=>{const u={...customFoods};if(u[cat])u[cat]=u[cat].filter(f=>f!==food);if(u[cat]&&u[cat].length===0)delete u[cat];setCustomFoods(u);onSaveSettings({birthday,mealCount,noFreezeList,customFoods:u});};
+  const cfList=Object.entries(customFoods||{}).flatMap(([cat,foods])=>foods.map(f=>({food:f,cat})));
   return(<div style={{padding:"12px 0"}}>
-    <div style={{fontFamily:font,fontWeight:700,fontSize:16,color:"#5D4037",marginBottom:10,textAlign:"center"}}>📅 {dateLabelFull(date)} の献立</div>
-    {labels.map(mt=>{
-      const mi=Array.isArray(dayData[mt])?dayData[mt]:[];const meta=dayMeta[mt]||{};const has=mi.length>0;
-      const icon=mt==="朝"?"🌅":mt==="昼"?"☀️":mt==="夕"?"🌙":"🍽️";
-      return(<button key={mt} onClick={()=>startEdit(mt)} style={{width:"100%",border:"none",borderRadius:14,background:has?"#FFF8F0":"#FAFAF5",padding:"12px 14px",marginBottom:8,cursor:"pointer",textAlign:"left",boxShadow:has?"0 1px 4px rgba(93,64,55,0.08)":"none",transition:"all 0.15s"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#5D4037"}}>{icon} {mt}</span>
-          {!has&&<span style={{fontSize:12,color:"#BFAE9A"}}>+ タップして追加</span>}
-        </div>
-        {has&&(<div style={{marginTop:6}}>
-          {mi.map((item,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:i<mi.length-1?2:0,paddingLeft:item.mixed&&i>0?8:0,borderLeft:item.mixed&&i>0?"2px solid #FF8A65":"2px solid transparent",marginLeft:item.mixed&&i>0?2:0}}>
-            {item.mixed&&i>0?<span style={{fontSize:9,color:"#FF8A65",fontWeight:700}}>＋</span>:<span style={{width:12}}/>}
-            <span style={{fontSize:12}}>{foodEmoji(item.food)}</span>
-            <span style={{fontFamily:font,fontSize:12,color:"#5D4037",flex:1}}>{item.food}{item.isNew&&<span style={{marginLeft:3,fontSize:9,background:"#FFCDD2",color:"#C62828",borderRadius:4,padding:"0px 4px",fontWeight:700}}>初</span>}</span>
-            <span style={{fontFamily:font,fontWeight:700,fontSize:12,color:"#E65100"}}>{item.amount}{item.unit}</span>
-          </div>))}
-          {meta.amount&&(<div style={{fontSize:10,color:"#8D7B6A",marginTop:4,fontFamily:font}}>{meta.amount==="少なめ"?"😐":meta.amount==="ふつう"?"😊":"😋"} {meta.amount}{meta.reaction&&` ・ ${meta.reaction}`}</div>)}
-        </div>)}
-      </button>);
-    })}
+    <div style={{background:"#FFF8F0",borderRadius:14,padding:"14px",marginBottom:12}}><label style={{...labelSt,fontSize:14}}>🎂 お子さんの誕生日</label><input type="date" value={birthday||""} onChange={e=>{setBirthday(e.target.value);onSaveSettings({birthday:e.target.value,mealCount,noFreezeList,customFoods});}} style={{width:"100%",border:"2px solid #F0E6D3",borderRadius:12,padding:"10px 12px",fontSize:15,fontFamily:font,color:"#5D4037",background:"#FAFAF5",boxSizing:"border-box",outline:"none"}}/>{monthAge!==null&&(<div style={{marginTop:8,fontFamily:font,fontSize:14,color:"#E65100",fontWeight:700,textAlign:"center"}}>🍼 生後 {monthAge}ヶ月 ・ {getStageLabel(monthAge)}</div>)}</div>
+    <div style={{background:"#FFF8F0",borderRadius:14,padding:"14px",marginBottom:12}}><label style={{...labelSt,fontSize:14}}>🍽️ 回数</label><div style={{display:"flex",gap:8}}>{[1,2,3].map(n=>(<button key={n} onClick={()=>{setMealCount(n);onSaveSettings({birthday,mealCount:n,noFreezeList,customFoods});}} style={{...pill(mealCount===n),flex:1,padding:"12px",fontSize:15}}>{n}回食</button>))}</div></div>
+    <div style={{background:"#FFF8F0",borderRadius:14,padding:"14px",marginBottom:12}}><label style={{...labelSt,fontSize:14}}>🥄 食材を追加</label><div style={{display:"flex",gap:4,marginBottom:8}}><input value={nfn} onChange={e=>setNfn(e.target.value)} placeholder="食材名" style={{flex:1,border:"2px solid #F0E6D3",borderRadius:10,padding:"8px 10px",fontSize:13,fontFamily:font,color:"#5D4037",background:"#FAFAF5",outline:"none"}}/><select value={nfc} onChange={e=>setNfc(e.target.value)} style={{border:"2px solid #F0E6D3",borderRadius:10,padding:"8px 6px",fontSize:12,fontFamily:font,color:"#5D4037",background:"#FAFAF5",outline:"none"}}>{cats.map(c=>(<option key={c} value={c}>{c}</option>))}</select><button onClick={addCF} style={{...pill(true),padding:"8px 14px"}}>追加</button></div>{cfList.length>0&&(<div><div style={{fontSize:11,color:"#8D7B6A",marginBottom:4,fontFamily:font}}>追加済み:</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{cfList.map(({food,cat})=>(<span key={food} style={{fontSize:12,background:"#E8F5E9",color:"#2E7D32",borderRadius:12,padding:"4px 10px",fontFamily:font,display:"flex",alignItems:"center",gap:4}}>{foodEmoji(food)} {food}({cat})<button onClick={()=>removeCF(cat,food)} style={{width:16,height:16,borderRadius:4,border:"none",background:"#FFCDD2",color:"#C62828",fontSize:9,cursor:"pointer"}}>✕</button></span>))}</div></div>)}</div>
+    <div style={{background:"#FFF8F0",borderRadius:14,padding:"14px",marginBottom:12}}><label style={{...labelSt,fontSize:14}}>🔥 冷凍しない食材（当日調理）</label><div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>{noFreezeList.map(f=>(<span key={f} style={{fontSize:13,background:"#FFF3E0",color:"#E65100",borderRadius:14,padding:"6px 12px",fontFamily:font,fontWeight:500,display:"flex",alignItems:"center",gap:4}}>{foodEmoji(f)} {f}<button onClick={()=>removeNF(f)} style={{width:18,height:18,borderRadius:4,border:"none",background:"#FFCDD2",color:"#C62828",fontSize:10,cursor:"pointer"}}>✕</button></span>))}{noFreezeList.length===0&&<span style={{fontFamily:font,fontSize:12,color:"#BFAE9A"}}>なし</span>}</div><div style={{fontSize:12,fontWeight:700,color:"#8D7B6A",marginBottom:6,fontFamily:font}}>追加する食材を選択：</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{allList.filter(f=>!noFreezeList.includes(f)).map(f=>(<button key={f} onClick={()=>addNF(f)} style={{padding:"4px 10px",borderRadius:12,border:"none",background:"#F5EDE3",color:"#5D4037",fontSize:11,cursor:"pointer",fontFamily:font}}>{foodEmoji(f)} {f}</button>))}</div></div>
+    {IS_FB?(<div style={{background:"#E8F5E9",borderRadius:14,padding:"14px"}}><div style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#2E7D32"}}>✅ リアルタイム同期ON</div><div style={{fontFamily:font,fontSize:12,color:"#5D4037"}}>2人のデータはリアルタイムで同期されます。</div></div>):(<div style={{background:"#FFF3E0",borderRadius:14,padding:"14px"}}><div style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#E65100"}}>⚠️ オフラインモード</div></div>)}
   </div>);
 }
 
-function CookingView({meals,selectedDate,noFreezeList}){
-  const{start,end}=getWeekRange(selectedDate);const weekDates=datesInRange(start,end);const noFreeze=new Set(noFreezeList);
-  const weeklyFoodUsage={};
-  weekDates.forEach(d=>{const dd=meals[d];if(!dd)return;Object.values(dd).forEach(arr=>{if(!Array.isArray(arr))return;
-    const dayAgg={};arr.forEach(item=>{dayAgg[item.food]=(dayAgg[item.food]||0)+item.amount;
-      if(!weeklyFoodUsage[item.food])weeklyFoodUsage[item.food]=[];});
-    Object.entries(dayAgg).forEach(([food,total])=>{
-      if(!weeklyFoodUsage[food])weeklyFoodUsage[food]=[];
-      const existing=weeklyFoodUsage[food].find(u=>u.date===d);
-      if(existing)existing.amount+=total;
-      else weeklyFoodUsage[food].push({date:d,amount:total,unit:UNIT_DEFAULTS[food]||"小さじ"});
-    });
-  });});
-
-  const frozenPrep={};const freshDaily={};
-  Object.entries(weeklyFoodUsage).forEach(([food,usages])=>{
-    if(noFreeze.has(food)){usages.forEach(({date,amount,unit})=>{if(!freshDaily[date])freshDaily[date]={};freshDaily[date][food]={unit,amount};});}
-    else{const first=usages[0].date;const prep=prevDay(first);if(!frozenPrep[prep])frozenPrep[prep]={};
-      frozenPrep[prep][food]={unit:usages[0].unit,total:usages.reduce((s,u)=>s+u.amount,0),usages};}
-  });
-
-  const allDates=new Set([...Object.keys(frozenPrep),...Object.keys(freshDaily)]);const schedule=[...allDates].sort();
-  return(<div style={{padding:"8px 0"}}>
-    <div style={{textAlign:"center",marginBottom:12}}><div style={{fontFamily:font,fontSize:11,color:"#BFAE9A"}}>献立から自動計算 ・ 🧊冷凍=前日準備 🔥当日=冷凍しない食材</div></div>
-    {schedule.length===0?(<div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🍳</div><div style={{fontFamily:font,fontSize:14}}>この週の献立を登録すると自動計算されます</div></div>):(
-      schedule.map(d=>{const frozen=frozenPrep[d]||{};const fresh=freshDaily[d]||{};const hf=Object.keys(frozen).length>0;const hr=Object.keys(fresh).length>0;
-        return(<div key={d} style={{background:"#FFF8F0",borderRadius:14,padding:"12px 14px",marginBottom:8,boxShadow:"0 1px 3px rgba(93,64,55,0.06)"}}>
-          <div style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#5D4037",marginBottom:8}}>📅 {dateLabelFull(d)}</div>
-          {hf&&(<div style={{marginBottom:hr?10:0}}><div style={{fontSize:11,fontWeight:700,color:"#1565C0",marginBottom:6,fontFamily:font}}>🧊 冷凍ストック作り</div>
-            {Object.entries(frozen).map(([food,{unit,total,usages}])=>{
-              const counts={};usages.forEach(u=>{counts[u.amount]=(counts[u.amount]||0)+1;});
-              const bd=Object.entries(counts).sort((a,b)=>+a[0]-+b[0]).map(([a,c])=>unit==="g"?`${a}g×${c}`:`小${a}×${c}`).join("、");
-              return(<div key={food} style={{padding:"6px 10px",background:"#E3F2FD",borderRadius:10,marginBottom:4}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span style={{fontFamily:font,fontWeight:600,fontSize:13,color:"#1565C0"}}>{foodEmoji(food)} {food}</span>
-                  <span style={{fontFamily:font,fontWeight:800,fontSize:13,color:"#0D47A1"}}>合計 {total}{unit}</span>
-                </div><div style={{fontFamily:font,fontSize:11,color:"#5D4037",marginTop:2}}>{bd}</div>
-              </div>);})}
-          </div>)}
-          {hr&&(<div><div style={{fontSize:11,fontWeight:700,color:"#E65100",marginBottom:6,fontFamily:font}}>🔥 当日調理</div>
-            {Object.entries(fresh).map(([food,{unit,amount}])=>(<div key={food} style={{padding:"6px 10px",background:"#FFF3E0",borderRadius:10,marginBottom:4}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{fontFamily:font,fontWeight:600,fontSize:13,color:"#E65100"}}>{foodEmoji(food)} {food}</span>
-                <span style={{fontFamily:font,fontWeight:800,fontSize:13,color:"#BF360C"}}>{amount}{unit}</span>
-              </div></div>))}
-          </div>)}
-        </div>);})
-    )}
-  </div>);
-}
-
-function ShoppingView({meals,selectedDate}){
-  const{start,end}=getWeekRange(selectedDate);const weekDates=datesInRange(start,end);const foodSet=new Set();
-  weekDates.forEach(d=>{const dd=meals[d];if(!dd)return;Object.values(dd).forEach(arr=>{if(!Array.isArray(arr))return;arr.forEach(item=>foodSet.add(item.food));});});
-  const grouped={};[...foodSet].forEach(f=>{const c=getCat(f);if(!grouped[c])grouped[c]=[];grouped[c].push(f);});
-  return(<div style={{padding:"8px 0"}}>
-    <div style={{textAlign:"center",marginBottom:12}}><div style={{fontFamily:font,fontSize:11,color:"#BFAE9A"}}>献立から自動生成</div></div>
-    {foodSet.size===0?(<div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🛒</div><div style={{fontFamily:font,fontSize:14}}>この週の献立を登録すると自動生成されます</div></div>):(
-      <div style={{background:"#FFF8F0",borderRadius:14,padding:"14px",boxShadow:"0 1px 4px rgba(93,64,55,0.06)"}}>
-        {Object.entries(grouped).map(([cat,items])=>(<div key={cat} style={{marginBottom:12}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#8D7B6A",marginBottom:6,fontFamily:font}}>■ {cat}</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{items.map(f=>(<span key={f} style={{fontSize:13,background:"#E3F2FD",color:"#1565C0",borderRadius:14,padding:"6px 12px",fontFamily:font,fontWeight:500}}>{foodEmoji(f)} {f}</span>))}</div>
-        </div>))}
-      </div>
-    )}
-  </div>);
-}
-
-function AllergyView({allergies,onUpdate}){
-  const[editFood,setEditFood]=React.useState(null);const[note,setNote]=React.useState("");const[status,setStatus]=React.useState("未確認");
-  const startEdit=(f)=>{setEditFood(f);setStatus(allergies[f]?.status||"未確認");setNote(allergies[f]?.note||"");};
-  const handleSave=()=>{onUpdate(editFood,{status,note,date:new Date().toISOString().slice(0,10)});setEditFood(null);};
-
-  if(editFood){return(<div style={{padding:"12px 0"}}>
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
-      <button onClick={()=>setEditFood(null)} style={pill(false)}>← 戻る</button>
-      <span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:16}}>{foodEmoji(editFood)} {editFood}</span>
-    </div>
-    <div style={{marginBottom:16}}>
-      <label style={labelSt}>状態</label>
-      <div style={{display:"flex",gap:6}}>
-        {[{v:"OK",e:"✅",bg:"#C8E6C9",c:"#2E7D32"},{v:"様子見",e:"👀",bg:"#FFF9C4",c:"#F57F17"},{v:"NG",e:"🚫",bg:"#FFCDD2",c:"#C62828"},{v:"未確認",e:"❓",bg:"#E0E0E0",c:"#616161"}].map(s=>(<button key={s.v} onClick={()=>setStatus(s.v)} style={{...pill(status===s.v,s.bg,s.c),flex:1}}>{s.e} {s.v}</button>))}
-      </div>
-    </div>
-    <div style={{marginBottom:16}}>
-      <label style={labelSt}>メモ</label>
-      <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="症状の詳細..." style={{width:"100%",border:"2px solid #F0E6D3",borderRadius:12,padding:"8px 12px",fontSize:13,fontFamily:font,color:"#5D4037",background:"#FAFAF5",boxSizing:"border-box",minHeight:60,resize:"vertical",outline:"none"}}/>
-    </div>
-    <button onClick={handleSave} style={{padding:"12px 20px",border:"none",borderRadius:14,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:font,background:"#FF8A65",color:"#FFF",width:"100%"}}>✓ 保存</button>
-  </div>);}
-
-  return(<div style={{padding:"8px 0"}}>
-    <div style={{fontFamily:font,fontSize:12,color:"#8D7B6A",marginBottom:12,textAlign:"center"}}>食材をタップしてアレルギーチェック記録を管理</div>
-    {Object.entries(STAGE_FOODS).map(([cat,foods])=>(<div key={cat} style={{marginBottom:14}}>
-      <div style={{fontSize:13,fontWeight:700,color:"#5D4037",marginBottom:6,fontFamily:font}}>■ {cat}</div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-        {foods.map(food=>{const st=allergies[food]?.status||"未確認";const bgMap={OK:"#C8E6C9",NG:"#FFCDD2","様子見":"#FFF9C4","未確認":"#F5EDE3"};const colMap={OK:"#2E7D32",NG:"#C62828","様子見":"#F57F17","未確認":"#8D7B6A"};const emoji={OK:"✅",NG:"🚫","様子見":"👀","未確認":""};
-          return(<button key={food} onClick={()=>startEdit(food)} style={{padding:"5px 10px",borderRadius:16,border:"none",background:bgMap[st],color:colMap[st],fontSize:12,cursor:"pointer",fontFamily:font,fontWeight:500}}>{emoji[st]} {foodEmoji(food)} {food}</button>);
-        })}
-      </div>
-    </div>))}
-  </div>);
-}
-
-function SettingsView({birthday,setBirthday,mealCount,setMealCount,noFreezeList,setNoFreezeList,onSaveSettings}){
-  const allFoods=Object.values(STAGE_FOODS).flat();const monthAge=calcMonthAge(birthday);
-  const addNF=(f)=>{if(!noFreezeList.includes(f)){const u=[...noFreezeList,f];setNoFreezeList(u);onSaveSettings({birthday,mealCount,noFreezeList:u});}};
-  const removeNF=(f)=>{const u=noFreezeList.filter(x=>x!==f);setNoFreezeList(u);onSaveSettings({birthday,mealCount,noFreezeList:u});};
-  return(<div style={{padding:"12px 0"}}>
-    <div style={{background:"#FFF8F0",borderRadius:14,padding:"14px",marginBottom:12,boxShadow:"0 1px 3px rgba(93,64,55,0.06)"}}>
-      <label style={{...labelSt,fontSize:14}}>🎂 お子さんの誕生日</label>
-      <input type="date" value={birthday||""} onChange={e=>{setBirthday(e.target.value);onSaveSettings({birthday:e.target.value,mealCount,noFreezeList});}}
-        style={{width:"100%",border:"2px solid #F0E6D3",borderRadius:12,padding:"10px 12px",fontSize:15,fontFamily:font,color:"#5D4037",background:"#FAFAF5",boxSizing:"border-box",outline:"none"}}/>
-      {monthAge!==null&&(<div style={{marginTop:8,fontFamily:font,fontSize:14,color:"#E65100",fontWeight:700,textAlign:"center"}}>🍼 生後 {monthAge}ヶ月 ・ {getStageLabel(monthAge)}</div>)}
-    </div>
-    <div style={{background:"#FFF8F0",borderRadius:14,padding:"14px",marginBottom:12,boxShadow:"0 1px 3px rgba(93,64,55,0.06)"}}>
-      <label style={{...labelSt,fontSize:14}}>🍽️ 回数</label>
-      <div style={{display:"flex",gap:8}}>
-        {[1,2,3].map(n=>(<button key={n} onClick={()=>{setMealCount(n);onSaveSettings({birthday,mealCount:n,noFreezeList});}} style={{...pill(mealCount===n),flex:1,padding:"12px",fontSize:15}}>{n}回食</button>))}
-      </div>
-    </div>
-    <div style={{background:"#FFF8F0",borderRadius:14,padding:"14px",boxShadow:"0 1px 3px rgba(93,64,55,0.06)"}}>
-      <label style={{...labelSt,fontSize:14}}>🔥 冷凍しない食材（当日調理）</label>
-      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
-        {noFreezeList.map(f=>(<span key={f} style={{fontSize:13,background:"#FFF3E0",color:"#E65100",borderRadius:14,padding:"6px 12px",fontFamily:font,fontWeight:500,display:"flex",alignItems:"center",gap:4}}>
-          {foodEmoji(f)} {f}<button onClick={()=>removeNF(f)} style={{width:18,height:18,borderRadius:4,border:"none",background:"#FFCDD2",color:"#C62828",fontSize:10,cursor:"pointer",lineHeight:"18px"}}>✕</button>
-        </span>))}
-        {noFreezeList.length===0&&<span style={{fontFamily:font,fontSize:12,color:"#BFAE9A"}}>なし</span>}
-      </div>
-      <div style={{fontSize:12,fontWeight:700,color:"#8D7B6A",marginBottom:6,fontFamily:font}}>追加する食材を選択：</div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-        {allFoods.filter(f=>!noFreezeList.includes(f)).map(f=>(<button key={f} onClick={()=>addNF(f)} style={{padding:"4px 10px",borderRadius:12,border:"none",background:"#F5EDE3",color:"#5D4037",fontSize:11,cursor:"pointer",fontFamily:font}}>{foodEmoji(f)} {f}</button>))}
-      </div>
-    </div>
-
-    {!IS_FIREBASE_CONFIGURED && (
-      <div style={{background:"#FFF3E0",borderRadius:14,padding:"14px",marginTop:12,boxShadow:"0 1px 3px rgba(93,64,55,0.06)"}}>
-        <div style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#E65100",marginBottom:4}}>⚠️ オフラインモード</div>
-        <div style={{fontFamily:font,fontSize:12,color:"#5D4037"}}>Firebase未設定のため、データはこの端末のみに保存されています。2人で同期するにはindex.html内のfirebaseConfigを設定してください。</div>
-      </div>
-    )}
-
-    {IS_FIREBASE_CONFIGURED && (
-      <div style={{background:"#E8F5E9",borderRadius:14,padding:"14px",marginTop:12,boxShadow:"0 1px 3px rgba(93,64,55,0.06)"}}>
-        <div style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#2E7D32",marginBottom:4}}>✅ リアルタイム同期ON</div>
-        <div style={{fontFamily:font,fontSize:12,color:"#5D4037"}}>Firebaseに接続中。2人のデータはリアルタイムで同期されます。</div>
-      </div>
-    )}
-  </div>);
-}
-
-// ── Main App ──
 function App(){
-  const now=new Date();
-  const[year,setYear]=React.useState(now.getFullYear());
-  const[month,setMonth]=React.useState(now.getMonth());
-  const[tab,setTab]=React.useState("calendar");
-  const[selectedDate,setSelectedDate]=React.useState(todayKey());
-  const[meals,setMeals]=React.useState({});
-  const[allergies,setAllergies]=React.useState({});
-  const[birthday,setBirthday]=React.useState(null);
-  const[mealCount,setMealCount]=React.useState(1);
-  const[noFreezeList,setNoFreezeList]=React.useState(DEFAULT_NO_FREEZE);
-  const[loading,setLoading]=React.useState(true);
-
-  React.useEffect(()=>{
-    const unsubs=[];
-    // Listen to meals
-    unsubs.push(fbListen("meals",val=>{
-      if(val){setMeals(val);}
-      else{setMeals(SEED_MEALS);fbSave("meals",SEED_MEALS);}
-      setLoading(false);
-    }));
-    unsubs.push(fbListen("allergies",val=>{if(val)setAllergies(val);}));
-    unsubs.push(fbListen("settings",val=>{
-      if(val){
-        if(val.birthday)setBirthday(val.birthday);
-        if(val.mealCount)setMealCount(val.mealCount);
-        if(val.noFreezeList)setNoFreezeList(val.noFreezeList);
-      }
-    }));
-    return()=>unsubs.forEach(fn=>fn&&fn());
-  },[]);
-
-  const saveMeals=(date,dayData,dayMeta)=>{
-    const updated={...meals};
-    const hasItems=dayData&&Object.values(dayData).some(arr=>Array.isArray(arr)&&arr.length>0);
-    if(hasItems)updated[date]=dayData;else delete updated[date];
-    if(dayMeta&&Object.keys(dayMeta).length>0)updated[`${date}_meta`]=dayMeta;else delete updated[`${date}_meta`];
-    setMeals(updated);fbSave("meals",updated);
-  };
-  const saveAllergy=(food,info)=>{const updated={...allergies,[food]:info};setAllergies(updated);fbSave("allergies",updated);};
+  const now=new Date();const[year,setYear]=React.useState(now.getFullYear());const[month,setMonth]=React.useState(now.getMonth());
+  const[tab,setTab]=React.useState("calendar");const[sd,setSd]=React.useState(todayKey());
+  const[meals,setMeals]=React.useState({});const[allergies,setAllergies]=React.useState({});const[cookingData,setCookingData]=React.useState({});
+  const[birthday,setBirthday]=React.useState(null);const[mealCount,setMealCount]=React.useState(1);const[noFreezeList,setNoFreezeList]=React.useState(DEFAULT_NO_FREEZE);const[customFoods,setCustomFoods]=React.useState({});const[loading,setLoading]=React.useState(true);
+  const allFoods=React.useMemo(()=>getAllFoods(customFoods),[customFoods]);
+  React.useEffect(()=>{const u=[];u.push(fbListen("meals",v=>{if(v)setMeals(v);else{setMeals(SEED_MEALS);fbSave("meals",SEED_MEALS);}setLoading(false);}));u.push(fbListen("allergies",v=>{if(v)setAllergies(v);}));u.push(fbListen("cooking",v=>{if(v)setCookingData(v);}));u.push(fbListen("settings",v=>{if(v){if(v.birthday)setBirthday(v.birthday);if(v.mealCount)setMealCount(v.mealCount);if(v.noFreezeList)setNoFreezeList(v.noFreezeList);if(v.customFoods)setCustomFoods(v.customFoods);}}));return()=>u.forEach(fn=>fn&&fn());},[]);
+  const saveMeals=(date,dd,dm)=>{const u={...meals};const has=dd&&Object.values(dd).some(a=>Array.isArray(a)&&a.length>0);if(has)u[date]=dd;else delete u[date];if(dm&&Object.keys(dm).length>0)u[`${date}_meta`]=dm;else delete u[`${date}_meta`];setMeals(u);fbSave("meals",u);};
+  const saveAllergy=(f,info)=>{const u={...allergies,[f]:info};setAllergies(u);fbSave("allergies",u);};
+  const saveCooking=(wk,data)=>{const u={...cookingData};if(data===null)delete u[wk];else u[wk]=data;setCookingData(u);fbSave("cooking",u);};
   const saveSettings=(s)=>fbSave("settings",s);
-
   const monthAge=calcMonthAge(birthday);
   const prevMonth=()=>{if(month===0){setYear(y=>y-1);setMonth(11);}else setMonth(m=>m-1);};
   const nextMonth=()=>{if(month===11){setYear(y=>y+1);setMonth(0);}else setMonth(m=>m+1);};
-
   if(loading)return(<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#FFF8F0",fontFamily:font,color:"#8D7B6A"}}><div style={{textAlign:"center"}}><div style={{fontSize:40,marginBottom:8}}>🍼</div>読み込み中...</div></div>);
-
-  return(<div>
-    <div style={{background:"linear-gradient(135deg,#FF8A65 0%,#FFB74D 100%)",padding:"16px 20px 12px",color:"#FFF",borderRadius:"0 0 24px 24px",boxShadow:"0 4px 16px rgba(255,138,101,0.25)"}}>
-      <div style={{fontSize:20,fontWeight:700,letterSpacing:1}}>🍼 もぐもぐダイアリー</div>
-      <div style={{fontSize:11,opacity:0.9,marginTop:3,display:"flex",gap:8,flexWrap:"wrap"}}>
-        {monthAge!==null&&<span>👶 生後{monthAge}ヶ月</span>}
-        {monthAge!==null&&<span>・ {getStageLabel(monthAge)}</span>}
-        <span>・ {mealCount}回食</span>
-        {IS_FIREBASE_CONFIGURED&&<span>・ 🔄同期中</span>}
-      </div>
-    </div>
-    <div style={{padding:"12px 16px 100px"}}>
-      <TabBar active={tab} onChange={setTab}/>
-      {tab==="calendar"&&(<><MonthNav year={year} month={month} onPrev={prevMonth} onNext={nextMonth}/><CalendarGrid year={year} month={month} meals={meals} selectedDate={selectedDate} onSelectDate={setSelectedDate}/><MealEditor date={selectedDate} meals={meals} onSave={saveMeals} allergies={allergies} mealCount={mealCount}/></>)}
-      {tab==="cooking"&&(<><WeekNav selectedDate={selectedDate} onDateChange={setSelectedDate}/><CookingView meals={meals} selectedDate={selectedDate} noFreezeList={noFreezeList}/></>)}
-      {tab==="shopping"&&(<><WeekNav selectedDate={selectedDate} onDateChange={setSelectedDate}/><ShoppingView meals={meals} selectedDate={selectedDate}/></>)}
-      {tab==="allergy"&&(<div style={{marginTop:12}}><AllergyView allergies={allergies} onUpdate={saveAllergy}/></div>)}
-      {tab==="settings"&&(<div style={{marginTop:12}}><SettingsView birthday={birthday} setBirthday={setBirthday} mealCount={mealCount} setMealCount={setMealCount} noFreezeList={noFreezeList} setNoFreezeList={setNoFreezeList} onSaveSettings={saveSettings}/></div>)}
-    </div>
-  </div>);
+  return(<div><div style={{background:"linear-gradient(135deg,#FF8A65 0%,#FFB74D 100%)",padding:"16px 20px 12px",color:"#FFF",borderRadius:"0 0 24px 24px",boxShadow:"0 4px 16px rgba(255,138,101,0.25)"}}><div style={{fontSize:20,fontWeight:700,letterSpacing:1}}>🍼 もぐもぐダイアリー</div><div style={{fontSize:11,opacity:0.9,marginTop:3,display:"flex",gap:8,flexWrap:"wrap"}}>{monthAge!==null&&<span>👶 生後{monthAge}ヶ月</span>}{monthAge!==null&&<span>・ {getStageLabel(monthAge)}</span>}<span>・ {mealCount}回食</span>{IS_FB&&<span>・ 🔄同期中</span>}</div></div>
+    <div style={{padding:"12px 16px 100px"}}><TabBar active={tab} onChange={setTab}/>
+      {tab==="calendar"&&(<><MonthNav year={year} month={month} onPrev={prevMonth} onNext={nextMonth}/><CalendarGrid year={year} month={month} meals={meals} selectedDate={sd} onSelectDate={setSd}/><MealEditor date={sd} meals={meals} onSave={saveMeals} allergies={allergies} mealCount={mealCount} allFoods={allFoods}/></>)}
+      {tab==="cooking"&&(<><WeekNav selectedDate={sd} onDateChange={setSd}/><CookingView meals={meals} selectedDate={sd} noFreezeList={noFreezeList} allFoods={allFoods} cookingData={cookingData} onSaveCooking={saveCooking}/></>)}
+      {tab==="shopping"&&(<><WeekNav selectedDate={sd} onDateChange={setSd}/><ShoppingView meals={meals} selectedDate={sd} allFoods={allFoods}/></>)}
+      {tab==="allergy"&&(<div style={{marginTop:12}}><AllergyView allergies={allergies} onUpdate={saveAllergy} allFoods={allFoods}/></div>)}
+      {tab==="settings"&&(<div style={{marginTop:12}}><SettingsView birthday={birthday} setBirthday={setBirthday} mealCount={mealCount} setMealCount={setMealCount} noFreezeList={noFreezeList} setNoFreezeList={setNoFreezeList} customFoods={customFoods} setCustomFoods={setCustomFoods} onSaveSettings={saveSettings} allFoods={allFoods}/></div>)}
+    </div></div>);
 }
-
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
