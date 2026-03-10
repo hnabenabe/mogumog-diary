@@ -81,89 +81,118 @@ function MealEditor({date,meals,onSave,allergies,mealCount,allFoods}){
   return(<div style={{padding:"12px 0"}}><div style={{fontFamily:font,fontWeight:700,fontSize:16,color:"#5D4037",marginBottom:10,textAlign:"center"}}>📅 {dateLabelFull(date)} の献立</div>{labels.map(mt=>{const mi=Array.isArray(dayData[mt])?dayData[mt]:[];const meta=dayMeta[mt]||{};const has=mi.length>0;const icon=mt==="朝"?"🌅":mt==="昼"?"☀️":mt==="夕"?"🌙":"🍽️";return(<button key={mt} onClick={()=>startEdit(mt)} style={{width:"100%",border:"none",borderRadius:14,background:has?"#FFF8F0":"#FAFAF5",padding:"12px 14px",marginBottom:8,cursor:"pointer",textAlign:"left",boxShadow:has?"0 1px 4px rgba(93,64,55,0.08)":"none"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#5D4037"}}>{icon} {mt}</span>{!has&&<span style={{fontSize:12,color:"#BFAE9A"}}>+ タップして追加</span>}</div>{has&&(<div style={{marginTop:6}}>{mi.map((item,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:6,marginBottom:2,paddingLeft:item.mixed&&i>0?8:0,borderLeft:item.mixed&&i>0?"2px solid #FF8A65":"2px solid transparent"}}>{item.mixed&&i>0?<span style={{fontSize:9,color:"#FF8A65",fontWeight:700}}>＋</span>:<span style={{width:12}}/>}<span style={{fontSize:12}}>{foodEmoji(item.food)}</span><span style={{fontFamily:font,fontSize:12,color:"#5D4037",flex:1}}>{item.food}{item.isNew&&<span style={{marginLeft:3,fontSize:9,background:"#FFCDD2",color:"#C62828",borderRadius:4,padding:"0px 4px",fontWeight:700}}>初</span>}</span><span style={{fontFamily:font,fontWeight:700,fontSize:12,color:"#E65100"}}>{item.amount}{item.unit}</span></div>))}{meta.amount&&(<div style={{fontSize:10,color:"#8D7B6A",marginTop:4,fontFamily:font}}>{meta.amount==="少なめ"?"😐":meta.amount==="ふつう"?"😊":"😋"} {meta.amount}{meta.reaction&&` ・ ${meta.reaction}`}</div>)}</div>)}</button>);})}</div>);
 }
 
-function CookingView({meals,selectedDate,onDateChange,noFreezeList,allFoods,cookingData,onSaveCooking}){
-  const prepDate=selectedDate;const noFreeze=new Set(noFreezeList);
-  // Feeding dates = prepDate+1 through prepDate+7
-  const nextDay=(ds,n)=>{const o=parseDk(ds);const p=new Date(o.y,o.m,o.d+n);return dk(p.getFullYear(),p.getMonth(),p.getDate());};
-  const feedStart=nextDay(prepDate,1);const feedEnd=nextDay(prepDate,7);
-  const feedDates=datesInRange(feedStart,feedEnd);
-  const shiftPrep=(n)=>onDateChange(nextDay(prepDate,n));
+// Helper: shift date by n days
+function shiftDate(ds,n){const o=parseDk(ds);const p=new Date(o.y,o.m,o.d+n);return dk(p.getFullYear(),p.getMonth(),p.getDate());}
+// Helper: days between two date strings
+function daysBetween(a,b){const oa=parseDk(a);const ob=parseDk(b);return Math.round((new Date(ob.y,ob.m,ob.d)-new Date(oa.y,oa.m,oa.d))/86400000);}
 
-  const[ed,setEd]=React.useState(null);const[ei,setEi]=React.useState([]);const[sp,setSp]=React.useState(false);const[ac,setAc]=React.useState(Object.keys(allFoods)[0]);
-  const saved=cookingData[prepDate];
-
-  const autoCalc=React.useMemo(()=>{
-    const wu={};feedDates.forEach(d=>{const dd=meals[d];if(!dd)return;Object.values(dd).forEach(arr=>{if(!Array.isArray(arr))return;const da={};arr.forEach(item=>{da[item.food]=(da[item.food]||0)+item.amount;if(!wu[item.food])wu[item.food]=[];});Object.entries(da).forEach(([food,total])=>{if(!wu[food])wu[food]=[];const ex=wu[food].find(u=>u.date===d);if(ex)ex.amount+=total;else wu[food].push({date:d,amount:total,unit:getUD(food)});});});});
-    const result={};
-    Object.entries(wu).forEach(([food,usages])=>{
-      if(noFreeze.has(food)){
-        usages.forEach(({date,amount,unit})=>{if(!result[date])result[date]=[];result[date].push({food,amount,unit,type:"fresh",pinned:false});});
-      }else{
-        const total=usages.reduce((s,u)=>s+u.amount,0);
-        const counts={};usages.forEach(u=>{counts[u.amount]=(counts[u.amount]||0)+1;});
-        const bd=Object.entries(counts).sort((a,b)=>+a[0]-+b[0]).map(([a,c])=>usages[0].unit==="g"?`${a}g×${c}`:`小${a}×${c}`).join("、");
-        if(!result[prepDate])result[prepDate]=[];
-        result[prepDate].push({food,amount:total,unit:usages[0].unit,type:"frozen",breakdown:bd,pinned:false});
-      }
+// Build full cooking schedule from all meals
+function buildCookingSchedule(meals,noFreezeList){
+  const noFreeze=new Set(noFreezeList);
+  // 1. Collect per-food per-date usage
+  const foodDates={}; // food -> [{date, amount, unit}] sorted by date
+  Object.entries(meals).forEach(([d,dayData])=>{
+    if(d.includes("_meta"))return;
+    Object.values(dayData).forEach(arr=>{
+      if(!Array.isArray(arr))return;
+      const dayAgg={};
+      arr.forEach(item=>{dayAgg[item.food]=(dayAgg[item.food]||0)+item.amount;});
+      Object.entries(dayAgg).forEach(([food,total])=>{
+        if(!foodDates[food])foodDates[food]=[];
+        const ex=foodDates[food].find(u=>u.date===d);
+        if(ex)ex.amount+=total;
+        else foodDates[food].push({date:d,amount:total,unit:getUD(food)});
+      });
     });
-    return result;
-  },[meals,prepDate,noFreezeList]);
+  });
+  // Sort each food's dates
+  Object.values(foodDates).forEach(arr=>arr.sort((a,b)=>a.date.localeCompare(b.date)));
 
-  const viewData=React.useMemo(()=>saved||autoCalc,[saved,autoCalc]);
-  const schedule=Object.keys(viewData).filter(d=>viewData[d]&&viewData[d].length>0).sort();
+  const result={}; // prepDate -> [{food, amount, unit, type, breakdown, feedDates}]
 
-  const startEditDay=(d)=>{setEi((viewData[d]||[]).map(i=>({...i})));setEd(d);setSp(false);};
-  const addCI=(f)=>{if(ei.find(i=>i.food===f))return;setEi([...ei,{food:f,amount:1,unit:getUD(f),type:noFreeze.has(f)?"fresh":"frozen",breakdown:"",pinned:true}]);setSp(false);};
-  const uci=(idx,field,val)=>{const n=[...ei];n[idx]={...n[idx],[field]:val};setEi(n);};
-  const rci=(idx)=>setEi(ei.filter((_,i)=>i!==idx));
-  const saveDay=()=>{const u={...viewData,[ed]:ei.length>0?ei:undefined};if(ei.length===0)delete u[ed];const c={};Object.entries(u).forEach(([k,v])=>{if(v&&v.length>0)c[k]=v;});onSaveCooking(prepDate,Object.keys(c).length>0?c:null);setEd(null);};
-  const autoFill=()=>{
-    const pinned={};
-    if(saved){Object.entries(saved).forEach(([d,items])=>{const pi=items.filter(i=>i.pinned);if(pi.length>0)pinned[d]=pi;});}
-    const merged={};
-    Object.entries(autoCalc).forEach(([d,items])=>{merged[d]=[...(merged[d]||[]),...items];});
-    Object.entries(pinned).forEach(([d,items])=>{if(!merged[d])merged[d]=[];items.forEach(pi=>{merged[d]=merged[d].filter(i=>i.food!==pi.food);merged[d].unshift(pi);});});
-    const c={};Object.entries(merged).forEach(([k,v])=>{if(v&&v.length>0)c[k]=v;});
-    onSaveCooking(prepDate,Object.keys(c).length>0?c:null);
-  };
-  const startNewDay=(d)=>{setEi([]);setEd(d);setSp(false);};
+  Object.entries(foodDates).forEach(([food,usages])=>{
+    if(noFreeze.has(food)){
+      // Fresh: show on each use day
+      usages.forEach(({date,amount,unit})=>{
+        if(!result[date])result[date]=[];
+        result[date].push({food,amount,unit,type:"fresh",breakdown:"",feedDates:[date]});
+      });
+    }else{
+      // Frozen: batch into 7-day groups
+      const assigned=new Set();
+      usages.forEach(({date},idx)=>{
+        if(assigned.has(date))return;
+        const prepDate=shiftDate(date,-1);
+        // Collect all usages within 7 days of prepDate (prepDate+1 to prepDate+7)
+        const batch=[];
+        usages.forEach(u=>{
+          if(assigned.has(u.date))return;
+          const diff=daysBetween(prepDate,u.date);
+          if(diff>=1&&diff<=7){batch.push(u);assigned.add(u.date);}
+        });
+        if(batch.length===0)return;
+        const total=batch.reduce((s,u)=>s+u.amount,0);
+        const counts={};batch.forEach(u=>{counts[u.amount]=(counts[u.amount]||0)+1;});
+        const bd=Object.entries(counts).sort((a,b)=>+a[0]-+b[0]).map(([a,c])=>batch[0].unit==="g"?`${a}g×${c}`:`小${a}×${c}`).join("、");
+        if(!result[prepDate])result[prepDate]=[];
+        result[prepDate].push({food,amount:total,unit:batch[0].unit,type:"frozen",breakdown:bd,feedDates:batch.map(b=>b.date)});
+      });
+    }
+  });
+  return result;
+}
 
-  // Picker
-  if(ed&&sp)return(<div style={{padding:"12px 0"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><button onClick={()=>setSp(false)} style={pill(false)}>← 戻る</button><span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:14}}>食材を追加</span></div><div style={{display:"flex",gap:4,overflowX:"auto",marginBottom:10,paddingBottom:4}}>{Object.keys(allFoods).map(cat=>(<button key={cat} onClick={()=>setAc(cat)} style={{...pill(ac===cat),whiteSpace:"nowrap"}}>{cat}</button>))}</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(allFoods[ac]||[]).map(f=>{const al=!!ei.find(i=>i.food===f);return(<button key={f} onClick={()=>!al&&addCI(f)} style={{padding:"8px 14px",borderRadius:20,border:"none",background:al?"#E0E0E0":"#F5EDE3",color:al?"#9E9E9E":"#5D4037",fontSize:13,cursor:al?"not-allowed":"pointer",fontFamily:font,fontWeight:500}}>{foodEmoji(f)} {f} {al?"✓":""}</button>);})}</div></div>);
-  // Editor
-  if(ed)return(<div style={{padding:"12px 0"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><button onClick={()=>setEd(null)} style={pill(false)}>← 戻る</button><span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:15}}>🍳 {dateLabelFull(ed)}</span><div style={{width:60}}/></div><div style={{marginBottom:12}}>{ei.map((item,idx)=>(<div key={idx} style={{display:"flex",alignItems:"center",gap:5,padding:"8px 10px",background:item.type==="fresh"?"#FFF3E0":"#E3F2FD",borderRadius:12,marginBottom:6,borderLeft:item.pinned?"3px solid #8D7B6A":"3px solid transparent"}}><button onClick={()=>uci(idx,"pinned",!item.pinned)} style={{width:22,height:22,borderRadius:6,border:"none",background:item.pinned?"#8D7B6A":"#F5EDE3",color:item.pinned?"#FFF":"#BFAE9A",fontSize:10,cursor:"pointer",flexShrink:0}}>{item.pinned?"🔒":"📌"}</button><span style={{fontSize:15}}>{foodEmoji(item.food)}</span><span style={{flex:1,fontFamily:font,fontWeight:600,fontSize:13,color:"#5D4037",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.food}</span><div style={{display:"flex",alignItems:"center",gap:3,flexShrink:0}}><button onClick={()=>uci(idx,"amount",Math.max(1,item.amount-1))} style={{width:26,height:26,borderRadius:8,border:"none",background:"rgba(255,255,255,0.6)",fontSize:13,cursor:"pointer",fontWeight:700,color:"#8D7B6A"}}>−</button><span style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#E65100",minWidth:24,textAlign:"center"}}>{item.amount}</span><button onClick={()=>uci(idx,"amount",item.amount+1)} style={{width:26,height:26,borderRadius:8,border:"none",background:"rgba(255,255,255,0.6)",fontSize:13,cursor:"pointer",fontWeight:700,color:"#8D7B6A"}}>+</button><span style={{fontFamily:font,fontSize:10,color:"#8D7B6A",width:28}}>{item.unit}</span></div><button onClick={()=>uci(idx,"type",item.type==="frozen"?"fresh":"frozen")} style={{padding:"2px 6px",borderRadius:6,border:"none",background:item.type==="frozen"?"#1565C0":"#E65100",color:"#FFF",fontSize:9,cursor:"pointer",fontFamily:font,fontWeight:700,flexShrink:0}}>{item.type==="frozen"?"🧊冷凍":"🔥当日"}</button><button onClick={()=>rci(idx)} style={{width:22,height:22,borderRadius:6,border:"none",background:"#FFCDD2",color:"#C62828",fontSize:11,cursor:"pointer"}}>✕</button></div>))}<button onClick={()=>setSp(true)} style={{width:"100%",padding:"10px",borderRadius:12,border:"2px dashed #E0D5C5",background:"transparent",color:"#BFAE9A",fontSize:13,cursor:"pointer",fontFamily:font}}>+ 食材を追加</button></div><div style={{fontFamily:font,fontSize:10,color:"#8D7B6A",textAlign:"center",marginBottom:8}}>🔒 = 固定（再計算で消えない）　📌 = タップで固定</div><button onClick={saveDay} style={{padding:"12px 20px",border:"none",borderRadius:14,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:font,background:"#FF8A65",color:"#FFF",width:"100%"}}>✓ 保存</button></div>);
+function CookingView({meals,year,month,noFreezeList,allFoods}){
+  const schedule=React.useMemo(()=>buildCookingSchedule(meals,noFreezeList),[meals,noFreezeList]);
+  // Show all prep days in the current month (plus a few days before/after for context)
+  const dim=getDIM(year,month);
+  const monthStart=dk(year,month,1);
+  const monthEnd=dk(year,month,dim);
+  // Include prep days a few days before month start (they might be for meals in this month)
+  const viewStart=shiftDate(monthStart,-3);
+  const prepDays=Object.keys(schedule).filter(d=>d>=viewStart&&d<=monthEnd).sort();
 
-  // Main view
+  if(prepDays.length===0)return(<div style={{padding:"8px 0"}}><div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🍳</div><div style={{fontFamily:font,fontSize:14}}>この月の献立を登録すると<br/>自動で作るものが表示されます</div></div></div>);
+
   return(<div style={{padding:"8px 0"}}>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 8px",marginBottom:8}}>
-      <button onClick={()=>shiftPrep(-1)} style={navBtn}>◀</button>
-      <div style={{textAlign:"center"}}>
-        <div style={{fontFamily:font,fontWeight:700,fontSize:16,color:"#5D4037"}}>🍳 作る日: {dateLabelFull(prepDate)}</div>
-        <div style={{fontFamily:font,fontSize:11,color:"#8D7B6A"}}>→ {dateLabel(feedStart)} 〜 {dateLabel(feedEnd)} の分</div>
-      </div>
-      <button onClick={()=>shiftPrep(1)} style={navBtn}>▶</button>
-    </div>
-    <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:10}}>
-      <button onClick={autoFill} style={{...pill(false),fontSize:11}}>🔄 献立から再計算（🔒以外）</button>
-    </div>
-    {saved&&<div style={{textAlign:"center",marginBottom:8}}><span style={{fontFamily:font,fontSize:10,color:"#8D7B6A",background:"#F5EDE3",padding:"2px 10px",borderRadius:8}}>🔒固定 + 🤖自動</span></div>}
-    {schedule.length===0?(<div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🍳</div><div style={{fontFamily:font,fontSize:14}}>この期間の献立を登録すると自動計算されます</div></div>):(
-      schedule.map(d=>{const dayItems=viewData[d]||[];const frozen=dayItems.filter(i=>i.type==="frozen");const fresh=dayItems.filter(i=>i.type==="fresh");
-        const isPrep=d===prepDate;
-        return(<button key={d} onClick={()=>startEditDay(d)} style={{width:"100%",border:"none",borderRadius:14,background:isPrep?"#FFF8F0":"#FAFAF5",padding:"12px 14px",marginBottom:8,cursor:"pointer",textAlign:"left",boxShadow:"0 1px 3px rgba(93,64,55,0.06)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <span style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#5D4037"}}>{isPrep?"🍳":"📅"} {dateLabelFull(d)}{isPrep?" （作る日）":""}</span>
-            <span style={{fontSize:10,color:"#BFAE9A"}}>タップで編集</span>
-          </div>
-          {frozen.length>0&&(<div style={{marginBottom:fresh.length>0?6:0}}><div style={{fontSize:10,fontWeight:700,color:"#1565C0",marginBottom:4,fontFamily:font}}>🧊 冷凍ストック</div>{frozen.map((item,i)=>(<div key={i} style={{padding:"4px 8px",background:"#E3F2FD",borderRadius:8,marginBottom:2,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontFamily:font,fontSize:12,color:"#1565C0"}}>{item.pinned?"🔒 ":""}{foodEmoji(item.food)} {item.food}</span><span style={{fontFamily:font,fontWeight:700,fontSize:12,color:"#0D47A1"}}>{item.amount}{item.unit}{item.breakdown?` (${item.breakdown})`:""}</span></div>))}</div>)}
-          {fresh.length>0&&(<div><div style={{fontSize:10,fontWeight:700,color:"#E65100",marginBottom:4,fontFamily:font}}>🔥 当日調理</div>{fresh.map((item,i)=>(<div key={i} style={{padding:"4px 8px",background:"#FFF3E0",borderRadius:8,marginBottom:2,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontFamily:font,fontSize:12,color:"#E65100"}}>{item.pinned?"🔒 ":""}{foodEmoji(item.food)} {item.food}</span><span style={{fontFamily:font,fontWeight:700,fontSize:12,color:"#BF360C"}}>{item.amount}{item.unit}</span></div>))}</div>)}
-        </button>);
-      })
-    )}
+    <div style={{textAlign:"center",marginBottom:10}}><span style={{fontFamily:font,fontSize:11,color:"#8D7B6A"}}>🤖 献立から自動計算 ・ 冷凍ストックは翌日〜7日分をまとめて作成</span></div>
+    {prepDays.map(d=>{
+      const items=schedule[d];
+      const frozen=items.filter(i=>i.type==="frozen");
+      const fresh=items.filter(i=>i.type==="fresh");
+      return(<div key={d} style={{background:"#FFF8F0",borderRadius:14,padding:"12px 14px",marginBottom:8,boxShadow:"0 1px 3px rgba(93,64,55,0.06)"}}>
+        <div style={{fontFamily:font,fontWeight:700,fontSize:14,color:"#5D4037",marginBottom:6}}>
+          {frozen.length>0?"🍳":"📅"} {dateLabelFull(d)}{frozen.length>0?" （作る日）":""}
+        </div>
+        {frozen.length>0&&(<div style={{marginBottom:fresh.length>0?8:0}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#1565C0",marginBottom:4,fontFamily:font}}>🧊 冷凍ストック作り</div>
+          {frozen.map((item,i)=>(<div key={i} style={{padding:"5px 10px",background:"#E3F2FD",borderRadius:10,marginBottom:3}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontFamily:font,fontWeight:600,fontSize:13,color:"#1565C0"}}>{foodEmoji(item.food)} {item.food}</span>
+              <span style={{fontFamily:font,fontWeight:800,fontSize:13,color:"#0D47A1"}}>合計 {item.amount}{item.unit}</span>
+            </div>
+            <div style={{fontFamily:font,fontSize:10,color:"#5D4037",marginTop:1}}>{item.breakdown}　→ {item.feedDates.map(fd=>dateLabel(fd)).join("、")}に使用</div>
+          </div>))}
+        </div>)}
+        {fresh.length>0&&(<div>
+          <div style={{fontSize:10,fontWeight:700,color:"#E65100",marginBottom:4,fontFamily:font}}>🔥 当日調理</div>
+          {fresh.map((item,i)=>(<div key={i} style={{padding:"5px 10px",background:"#FFF3E0",borderRadius:10,marginBottom:3,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontFamily:font,fontWeight:600,fontSize:13,color:"#E65100"}}>{foodEmoji(item.food)} {item.food}</span>
+            <span style={{fontFamily:font,fontWeight:800,fontSize:13,color:"#BF360C"}}>{item.amount}{item.unit}</span>
+          </div>))}
+        </div>)}
+      </div>);
+    })}
   </div>);
 }
 
-function ShoppingView({meals,selectedDate,allFoods}){const nextDay=(ds,n)=>{const o=parseDk(ds);const p=new Date(o.y,o.m,o.d+n);return dk(p.getFullYear(),p.getMonth(),p.getDate());};const feedStart=nextDay(selectedDate,1);const feedEnd=nextDay(selectedDate,7);const feedDates=datesInRange(feedStart,feedEnd);const foodSet=new Set();feedDates.forEach(d=>{const dd=meals[d];if(!dd)return;Object.values(dd).forEach(arr=>{if(!Array.isArray(arr))return;arr.forEach(item=>foodSet.add(item.food));});});const grouped={};[...foodSet].forEach(f=>{const c=getCat(f,allFoods);if(!grouped[c])grouped[c]=[];grouped[c].push(f);});return(<div style={{padding:"8px 0"}}><div style={{textAlign:"center",marginBottom:12}}><div style={{fontFamily:font,fontSize:11,color:"#BFAE9A"}}>{dateLabel(feedStart)} 〜 {dateLabel(feedEnd)} の献立から自動生成</div></div>{foodSet.size===0?(<div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🛒</div><div style={{fontFamily:font,fontSize:14}}>この期間の献立を登録すると自動生成されます</div></div>):(<div style={{background:"#FFF8F0",borderRadius:14,padding:"14px"}}>{Object.entries(grouped).map(([cat,items])=>(<div key={cat} style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:"#8D7B6A",marginBottom:6,fontFamily:font}}>■ {cat}</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{items.map(f=>(<span key={f} style={{fontSize:13,background:"#E3F2FD",color:"#1565C0",borderRadius:14,padding:"6px 12px",fontFamily:font,fontWeight:500}}>{foodEmoji(f)} {f}</span>))}</div></div>))}</div>)}</div>);}
+function ShoppingView({meals,year,month,allFoods}){
+  const dim=getDIM(year,month);const monthStart=dk(year,month,1);const monthEnd=dk(year,month,dim);
+  const monthDates=datesInRange(monthStart,monthEnd);
+  const foodSet=new Set();monthDates.forEach(d=>{const dd=meals[d];if(!dd)return;Object.values(dd).forEach(arr=>{if(!Array.isArray(arr))return;arr.forEach(item=>foodSet.add(item.food));});});
+  const grouped={};[...foodSet].forEach(f=>{const c=getCat(f,allFoods);if(!grouped[c])grouped[c]=[];grouped[c].push(f);});
+  return(<div style={{padding:"8px 0"}}><div style={{textAlign:"center",marginBottom:12}}><div style={{fontFamily:font,fontSize:11,color:"#BFAE9A"}}>{year}年{month+1}月の献立から自動生成</div></div>{foodSet.size===0?(<div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🛒</div><div style={{fontFamily:font,fontSize:14}}>この月の献立を登録すると自動生成されます</div></div>):(<div style={{background:"#FFF8F0",borderRadius:14,padding:"14px"}}>{Object.entries(grouped).map(([cat,items])=>(<div key={cat} style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:"#8D7B6A",marginBottom:6,fontFamily:font}}>■ {cat}</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{items.map(f=>(<span key={f} style={{fontSize:13,background:"#E3F2FD",color:"#1565C0",borderRadius:14,padding:"6px 12px",fontFamily:font,fontWeight:500}}>{foodEmoji(f)} {f}</span>))}</div></div>))}</div>)}</div>);
+}
 
 function AllergyView({allergies,onUpdate,allFoods}){const[ef,setEf]=React.useState(null);const[note,setNote]=React.useState("");const[status,setStatus]=React.useState("未確認");const se=(f)=>{setEf(f);setStatus(allergies[f]?.status||"未確認");setNote(allergies[f]?.note||"");};const hs=()=>{onUpdate(ef,{status,note,date:new Date().toISOString().slice(0,10)});setEf(null);};if(ef)return(<div style={{padding:"12px 0"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}><button onClick={()=>setEf(null)} style={pill(false)}>← 戻る</button><span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:16}}>{foodEmoji(ef)} {ef}</span></div><div style={{marginBottom:16}}><label style={labelSt}>状態</label><div style={{display:"flex",gap:6}}>{[{v:"OK",e:"✅",bg:"#C8E6C9",c:"#2E7D32"},{v:"様子見",e:"👀",bg:"#FFF9C4",c:"#F57F17"},{v:"NG",e:"🚫",bg:"#FFCDD2",c:"#C62828"},{v:"未確認",e:"❓",bg:"#E0E0E0",c:"#616161"}].map(s=>(<button key={s.v} onClick={()=>setStatus(s.v)} style={{...pill(status===s.v,s.bg,s.c),flex:1}}>{s.e} {s.v}</button>))}</div></div><div style={{marginBottom:16}}><label style={labelSt}>メモ</label><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="症状の詳細..." style={{width:"100%",border:"2px solid #F0E6D3",borderRadius:12,padding:"8px 12px",fontSize:13,fontFamily:font,color:"#5D4037",background:"#FAFAF5",boxSizing:"border-box",minHeight:60,resize:"vertical",outline:"none"}}/></div><button onClick={hs} style={{padding:"12px 20px",border:"none",borderRadius:14,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:font,background:"#FF8A65",color:"#FFF",width:"100%"}}>✓ 保存</button></div>);return(<div style={{padding:"8px 0"}}><div style={{fontFamily:font,fontSize:12,color:"#8D7B6A",marginBottom:12,textAlign:"center"}}>食材をタップしてアレルギーチェック記録を管理</div>{Object.entries(allFoods).map(([cat,foods])=>(<div key={cat} style={{marginBottom:14}}><div style={{fontSize:13,fontWeight:700,color:"#5D4037",marginBottom:6,fontFamily:font}}>■ {cat}</div><div style={{display:"flex",flexWrap:"wrap",gap:5}}>{foods.map(food=>{const st=allergies[food]?.status||"未確認";const bgMap={OK:"#C8E6C9",NG:"#FFCDD2","様子見":"#FFF9C4","未確認":"#F5EDE3"};const colMap={OK:"#2E7D32",NG:"#C62828","様子見":"#F57F17","未確認":"#8D7B6A"};const emoji={OK:"✅",NG:"🚫","様子見":"👀","未確認":""};return(<button key={food} onClick={()=>se(food)} style={{padding:"5px 10px",borderRadius:16,border:"none",background:bgMap[st],color:colMap[st],fontSize:12,cursor:"pointer",fontFamily:font,fontWeight:500}}>{emoji[st]} {foodEmoji(food)} {food}</button>);})}</div></div>))}</div>);}
 
@@ -184,22 +213,15 @@ function SettingsView({birthday,setBirthday,mealCount,setMealCount,noFreezeList,
   </div>);
 }
 
-function CookingNavWrap({selectedDate,onDateChange,children}){
-  const nextDay=(ds,n)=>{const o=parseDk(ds);const p=new Date(o.y,o.m,o.d+n);return dk(p.getFullYear(),p.getMonth(),p.getDate());};
-  const feedStart=nextDay(selectedDate,1);const feedEnd=nextDay(selectedDate,7);
-  return(<div style={{padding:"8px 0"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 8px",marginBottom:8}}><button onClick={()=>onDateChange(nextDay(selectedDate,-1))} style={navBtn}>◀</button><div style={{textAlign:"center"}}><div style={{fontFamily:font,fontWeight:700,fontSize:16,color:"#5D4037"}}>🛒 {dateLabel(feedStart)} 〜 {dateLabel(feedEnd)}</div><div style={{fontFamily:font,fontSize:11,color:"#8D7B6A"}}>作る日: {dateLabelFull(selectedDate)}</div></div><button onClick={()=>onDateChange(nextDay(selectedDate,1))} style={navBtn}>▶</button></div>{children}</div>);
-}
-
 function App(){
   const now=new Date();const[year,setYear]=React.useState(now.getFullYear());const[month,setMonth]=React.useState(now.getMonth());
   const[tab,setTab]=React.useState("calendar");const[sd,setSd]=React.useState(todayKey());
-  const[meals,setMeals]=React.useState({});const[allergies,setAllergies]=React.useState({});const[cookingData,setCookingData]=React.useState({});
+  const[meals,setMeals]=React.useState({});const[allergies,setAllergies]=React.useState({});
   const[birthday,setBirthday]=React.useState(null);const[mealCount,setMealCount]=React.useState(1);const[noFreezeList,setNoFreezeList]=React.useState(DEFAULT_NO_FREEZE);const[customFoods,setCustomFoods]=React.useState({});const[loading,setLoading]=React.useState(true);
   const allFoods=React.useMemo(()=>getAllFoods(customFoods),[customFoods]);
-  React.useEffect(()=>{const u=[];u.push(fbListen("meals",v=>{if(v)setMeals(v);else{setMeals(SEED_MEALS);fbSave("meals",SEED_MEALS);}setLoading(false);}));u.push(fbListen("allergies",v=>{if(v)setAllergies(v);}));u.push(fbListen("cooking",v=>{if(v)setCookingData(v);}));u.push(fbListen("settings",v=>{if(v){if(v.birthday)setBirthday(v.birthday);if(v.mealCount)setMealCount(v.mealCount);if(v.noFreezeList)setNoFreezeList(v.noFreezeList);if(v.customFoods)setCustomFoods(v.customFoods);}}));return()=>u.forEach(fn=>fn&&fn());},[]);
+  React.useEffect(()=>{const u=[];u.push(fbListen("meals",v=>{if(v)setMeals(v);else{setMeals(SEED_MEALS);fbSave("meals",SEED_MEALS);}setLoading(false);}));u.push(fbListen("allergies",v=>{if(v)setAllergies(v);}));u.push(fbListen("settings",v=>{if(v){if(v.birthday)setBirthday(v.birthday);if(v.mealCount)setMealCount(v.mealCount);if(v.noFreezeList)setNoFreezeList(v.noFreezeList);if(v.customFoods)setCustomFoods(v.customFoods);}}));return()=>u.forEach(fn=>fn&&fn());},[]);
   const saveMeals=(date,dd,dm)=>{const u={...meals};const has=dd&&Object.values(dd).some(a=>Array.isArray(a)&&a.length>0);if(has)u[date]=dd;else delete u[date];if(dm&&Object.keys(dm).length>0)u[`${date}_meta`]=dm;else delete u[`${date}_meta`];setMeals(u);fbSave("meals",u);};
   const saveAllergy=(f,info)=>{const u={...allergies,[f]:info};setAllergies(u);fbSave("allergies",u);};
-  const saveCooking=(wk,data)=>{const u={...cookingData};if(data===null)delete u[wk];else u[wk]=data;setCookingData(u);fbSave("cooking",u);};
   const saveSettings=(s)=>fbSave("settings",s);
   const monthAge=calcMonthAge(birthday);
   const prevMonth=()=>{if(month===0){setYear(y=>y-1);setMonth(11);}else setMonth(m=>m-1);};
@@ -208,8 +230,8 @@ function App(){
   return(<div><div style={{background:"linear-gradient(135deg,#FF8A65 0%,#FFB74D 100%)",padding:"16px 20px 12px",color:"#FFF",borderRadius:"0 0 24px 24px",boxShadow:"0 4px 16px rgba(255,138,101,0.25)"}}><div style={{fontSize:20,fontWeight:700,letterSpacing:1}}>🍼 もぐもぐダイアリー</div><div style={{fontSize:11,opacity:0.9,marginTop:3,display:"flex",gap:8,flexWrap:"wrap"}}>{monthAge!==null&&<span>👶 生後{monthAge}ヶ月</span>}{monthAge!==null&&<span>・ {getStageLabel(monthAge)}</span>}<span>・ {mealCount}回食</span>{IS_FB&&<span>・ 🔄同期中</span>}</div></div>
     <div style={{padding:"12px 16px 100px"}}><TabBar active={tab} onChange={setTab}/>
       {tab==="calendar"&&(<><MonthNav year={year} month={month} onPrev={prevMonth} onNext={nextMonth}/><CalendarGrid year={year} month={month} meals={meals} selectedDate={sd} onSelectDate={setSd}/><MealEditor date={sd} meals={meals} onSave={saveMeals} allergies={allergies} mealCount={mealCount} allFoods={allFoods}/></>)}
-      {tab==="cooking"&&(<CookingView meals={meals} selectedDate={sd} onDateChange={setSd} noFreezeList={noFreezeList} allFoods={allFoods} cookingData={cookingData} onSaveCooking={saveCooking}/>)}
-      {tab==="shopping"&&(<CookingNavWrap selectedDate={sd} onDateChange={setSd}><ShoppingView meals={meals} selectedDate={sd} allFoods={allFoods}/></CookingNavWrap>)}
+      {tab==="cooking"&&(<><MonthNav year={year} month={month} onPrev={prevMonth} onNext={nextMonth}/><CookingView meals={meals} year={year} month={month} noFreezeList={noFreezeList} allFoods={allFoods}/></>)}
+      {tab==="shopping"&&(<><MonthNav year={year} month={month} onPrev={prevMonth} onNext={nextMonth}/><ShoppingView meals={meals} year={year} month={month} allFoods={allFoods}/></>)}
       {tab==="allergy"&&(<div style={{marginTop:12}}><AllergyView allergies={allergies} onUpdate={saveAllergy} allFoods={allFoods}/></div>)}
       {tab==="settings"&&(<div style={{marginTop:12}}><SettingsView birthday={birthday} setBirthday={setBirthday} mealCount={mealCount} setMealCount={setMealCount} noFreezeList={noFreezeList} setNoFreezeList={setNoFreezeList} customFoods={customFoods} setCustomFoods={setCustomFoods} onSaveSettings={saveSettings} allFoods={allFoods}/></div>)}
     </div></div>);
