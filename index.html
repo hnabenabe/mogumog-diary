@@ -142,17 +142,15 @@ function buildCookingSchedule(meals,noFreezeList){
   return result;
 }
 
-function CookingView({meals,year,month,noFreezeList,allFoods}){
+function CookingView({meals,selectedDate,onDateChange,noFreezeList,allFoods}){
   const schedule=React.useMemo(()=>buildCookingSchedule(meals,noFreezeList),[meals,noFreezeList]);
-  // Show all prep days in the current month (plus a few days before/after for context)
-  const dim=getDIM(year,month);
-  const monthStart=dk(year,month,1);
-  const monthEnd=dk(year,month,dim);
-  // Include prep days a few days before month start (they might be for meals in this month)
-  const viewStart=shiftDate(monthStart,-3);
-  const prepDays=Object.keys(schedule).filter(d=>d>=viewStart&&d<=monthEnd).sort();
+  // Week range based on selectedDate (Mon-Sun)
+  const{start,end}=getWeekRange(selectedDate);
+  const viewStart=shiftDate(start,-3); // include a few days before for prep days
+  const prepDays=Object.keys(schedule).filter(d=>d>=viewStart&&d<=end).sort();
+  const shiftWeek=(n)=>{const o=parseDk(start);const p=new Date(o.y,o.m,o.d+n);onDateChange(dk(p.getFullYear(),p.getMonth(),p.getDate()));};
 
-  if(prepDays.length===0)return(<div style={{padding:"8px 0"}}><div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🍳</div><div style={{fontFamily:font,fontSize:14}}>この月の献立を登録すると<br/>自動で作るものが表示されます</div></div></div>);
+  if(prepDays.length===0)return(<div style={{padding:"8px 0"}}><div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🍳</div><div style={{fontFamily:font,fontSize:14}}>この週の献立を登録すると<br/>自動で作るものが表示されます</div></div></div>);
 
   return(<div style={{padding:"8px 0"}}>
     <div style={{textAlign:"center",marginBottom:10}}><span style={{fontFamily:font,fontSize:11,color:"#8D7B6A"}}>🤖 献立から自動計算 ・ 冷凍ストックは翌日〜7日分をまとめて作成</span></div>
@@ -186,12 +184,12 @@ function CookingView({meals,year,month,noFreezeList,allFoods}){
   </div>);
 }
 
-function ShoppingView({meals,year,month,allFoods}){
-  const dim=getDIM(year,month);const monthStart=dk(year,month,1);const monthEnd=dk(year,month,dim);
-  const monthDates=datesInRange(monthStart,monthEnd);
-  const foodSet=new Set();monthDates.forEach(d=>{const dd=meals[d];if(!dd)return;Object.values(dd).forEach(arr=>{if(!Array.isArray(arr))return;arr.forEach(item=>foodSet.add(item.food));});});
+function ShoppingView({meals,selectedDate,allFoods}){
+  const{start,end}=getWeekRange(selectedDate);
+  const weekDates=datesInRange(start,end);
+  const foodSet=new Set();weekDates.forEach(d=>{const dd=meals[d];if(!dd)return;Object.values(dd).forEach(arr=>{if(!Array.isArray(arr))return;arr.forEach(item=>foodSet.add(item.food));});});
   const grouped={};[...foodSet].forEach(f=>{const c=getCat(f,allFoods);if(!grouped[c])grouped[c]=[];grouped[c].push(f);});
-  return(<div style={{padding:"8px 0"}}><div style={{textAlign:"center",marginBottom:12}}><div style={{fontFamily:font,fontSize:11,color:"#BFAE9A"}}>{year}年{month+1}月の献立から自動生成</div></div>{foodSet.size===0?(<div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🛒</div><div style={{fontFamily:font,fontSize:14}}>この月の献立を登録すると自動生成されます</div></div>):(<div style={{background:"#FFF8F0",borderRadius:14,padding:"14px"}}>{Object.entries(grouped).map(([cat,items])=>(<div key={cat} style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:"#8D7B6A",marginBottom:6,fontFamily:font}}>■ {cat}</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{items.map(f=>(<span key={f} style={{fontSize:13,background:"#E3F2FD",color:"#1565C0",borderRadius:14,padding:"6px 12px",fontFamily:font,fontWeight:500}}>{foodEmoji(f)} {f}</span>))}</div></div>))}</div>)}</div>);
+  return(<div style={{padding:"8px 0"}}><div style={{textAlign:"center",marginBottom:12}}><div style={{fontFamily:font,fontSize:11,color:"#BFAE9A"}}>{dateLabel(start)} 〜 {dateLabel(end)} の献立から自動生成</div></div>{foodSet.size===0?(<div style={{textAlign:"center",padding:40,color:"#BFAE9A"}}><div style={{fontSize:40,marginBottom:8}}>🛒</div><div style={{fontFamily:font,fontSize:14}}>この週の献立を登録すると自動生成されます</div></div>):(<div style={{background:"#FFF8F0",borderRadius:14,padding:"14px"}}>{Object.entries(grouped).map(([cat,items])=>(<div key={cat} style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:"#8D7B6A",marginBottom:6,fontFamily:font}}>■ {cat}</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{items.map(f=>(<span key={f} style={{fontSize:13,background:"#E3F2FD",color:"#1565C0",borderRadius:14,padding:"6px 12px",fontFamily:font,fontWeight:500}}>{foodEmoji(f)} {f}</span>))}</div></div>))}</div>)}</div>);
 }
 
 function AllergyView({allergies,onUpdate,allFoods}){const[ef,setEf]=React.useState(null);const[note,setNote]=React.useState("");const[status,setStatus]=React.useState("未確認");const se=(f)=>{setEf(f);setStatus(allergies[f]?.status||"未確認");setNote(allergies[f]?.note||"");};const hs=()=>{onUpdate(ef,{status,note,date:new Date().toISOString().slice(0,10)});setEf(null);};if(ef)return(<div style={{padding:"12px 0"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}><button onClick={()=>setEf(null)} style={pill(false)}>← 戻る</button><span style={{fontFamily:font,fontWeight:700,color:"#5D4037",fontSize:16}}>{foodEmoji(ef)} {ef}</span></div><div style={{marginBottom:16}}><label style={labelSt}>状態</label><div style={{display:"flex",gap:6}}>{[{v:"OK",e:"✅",bg:"#C8E6C9",c:"#2E7D32"},{v:"様子見",e:"👀",bg:"#FFF9C4",c:"#F57F17"},{v:"NG",e:"🚫",bg:"#FFCDD2",c:"#C62828"},{v:"未確認",e:"❓",bg:"#E0E0E0",c:"#616161"}].map(s=>(<button key={s.v} onClick={()=>setStatus(s.v)} style={{...pill(status===s.v,s.bg,s.c),flex:1}}>{s.e} {s.v}</button>))}</div></div><div style={{marginBottom:16}}><label style={labelSt}>メモ</label><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="症状の詳細..." style={{width:"100%",border:"2px solid #F0E6D3",borderRadius:12,padding:"8px 12px",fontSize:13,fontFamily:font,color:"#5D4037",background:"#FAFAF5",boxSizing:"border-box",minHeight:60,resize:"vertical",outline:"none"}}/></div><button onClick={hs} style={{padding:"12px 20px",border:"none",borderRadius:14,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:font,background:"#FF8A65",color:"#FFF",width:"100%"}}>✓ 保存</button></div>);return(<div style={{padding:"8px 0"}}><div style={{fontFamily:font,fontSize:12,color:"#8D7B6A",marginBottom:12,textAlign:"center"}}>食材をタップしてアレルギーチェック記録を管理</div>{Object.entries(allFoods).map(([cat,foods])=>(<div key={cat} style={{marginBottom:14}}><div style={{fontSize:13,fontWeight:700,color:"#5D4037",marginBottom:6,fontFamily:font}}>■ {cat}</div><div style={{display:"flex",flexWrap:"wrap",gap:5}}>{foods.map(food=>{const st=allergies[food]?.status||"未確認";const bgMap={OK:"#C8E6C9",NG:"#FFCDD2","様子見":"#FFF9C4","未確認":"#F5EDE3"};const colMap={OK:"#2E7D32",NG:"#C62828","様子見":"#F57F17","未確認":"#8D7B6A"};const emoji={OK:"✅",NG:"🚫","様子見":"👀","未確認":""};return(<button key={food} onClick={()=>se(food)} style={{padding:"5px 10px",borderRadius:16,border:"none",background:bgMap[st],color:colMap[st],fontSize:12,cursor:"pointer",fontFamily:font,fontWeight:500}}>{emoji[st]} {foodEmoji(food)} {food}</button>);})}</div></div>))}</div>);}
@@ -230,8 +228,8 @@ function App(){
   return(<div><div style={{background:"linear-gradient(135deg,#FF8A65 0%,#FFB74D 100%)",padding:"16px 20px 12px",color:"#FFF",borderRadius:"0 0 24px 24px",boxShadow:"0 4px 16px rgba(255,138,101,0.25)"}}><div style={{fontSize:20,fontWeight:700,letterSpacing:1}}>🍼 もぐもぐダイアリー</div><div style={{fontSize:11,opacity:0.9,marginTop:3,display:"flex",gap:8,flexWrap:"wrap"}}>{monthAge!==null&&<span>👶 生後{monthAge}ヶ月</span>}{monthAge!==null&&<span>・ {getStageLabel(monthAge)}</span>}<span>・ {mealCount}回食</span>{IS_FB&&<span>・ 🔄同期中</span>}</div></div>
     <div style={{padding:"12px 16px 100px"}}><TabBar active={tab} onChange={setTab}/>
       {tab==="calendar"&&(<><MonthNav year={year} month={month} onPrev={prevMonth} onNext={nextMonth}/><CalendarGrid year={year} month={month} meals={meals} selectedDate={sd} onSelectDate={setSd}/><MealEditor date={sd} meals={meals} onSave={saveMeals} allergies={allergies} mealCount={mealCount} allFoods={allFoods}/></>)}
-      {tab==="cooking"&&(<><MonthNav year={year} month={month} onPrev={prevMonth} onNext={nextMonth}/><CookingView meals={meals} year={year} month={month} noFreezeList={noFreezeList} allFoods={allFoods}/></>)}
-      {tab==="shopping"&&(<><MonthNav year={year} month={month} onPrev={prevMonth} onNext={nextMonth}/><ShoppingView meals={meals} year={year} month={month} allFoods={allFoods}/></>)}
+      {tab==="cooking"&&(<><WeekNav selectedDate={sd} onDateChange={setSd}/><CookingView meals={meals} selectedDate={sd} onDateChange={setSd} noFreezeList={noFreezeList} allFoods={allFoods}/></>)}
+      {tab==="shopping"&&(<><WeekNav selectedDate={sd} onDateChange={setSd}/><ShoppingView meals={meals} selectedDate={sd} allFoods={allFoods}/></>)}
       {tab==="allergy"&&(<div style={{marginTop:12}}><AllergyView allergies={allergies} onUpdate={saveAllergy} allFoods={allFoods}/></div>)}
       {tab==="settings"&&(<div style={{marginTop:12}}><SettingsView birthday={birthday} setBirthday={setBirthday} mealCount={mealCount} setMealCount={setMealCount} noFreezeList={noFreezeList} setNoFreezeList={setNoFreezeList} customFoods={customFoods} setCustomFoods={setCustomFoods} onSaveSettings={saveSettings} allFoods={allFoods}/></div>)}
     </div></div>);
